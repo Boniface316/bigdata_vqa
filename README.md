@@ -16,4 +16,4 @@ This repo contains the notebooks I used for my experiments.
 
 - Supplementary material.ipynb contains the code I submitted together with my dissertation. It shows how I computed the cost of a given coreset brute force, performed VQE experiments and QAOA
 - Experiments.ipynb: Contains all experiments that have been performed (TODO)
-- Visualisations.ipynb: Contains visualisations of the results (TODO)
+- Visualisations_Experiments.ipynb: Contains visualisations of the results of the experiments
