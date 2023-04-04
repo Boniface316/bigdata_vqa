@@ -1,17 +1,18 @@
-FROM nvcr.io/nvidia/cuquantum-appliance:22.11
+# FROM nvcr.io/nvidia/cuquantum-appliance:22.11
+FROM nvcr.io/nvidia/cuda-quantum:0.3.0
 
-COPY requirements.txt ./
 
-RUN apt-get update -y && \
-    apt-get install -y openssh-server sysstat
+USER root
 
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt 
+WORKDIR /workspace/
+
+RUN sudo apt-get update -y && \
+    sudo apt-get install -y openssh-server sysstat
 
 RUN pip install jupyterthemes && \
     jt -t oceans16 -T -N -kl -cursw 3 -cursc r -cellw 88% -T -N && \
-    echo "jupyter notebook --ip='0.0.0.0' --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''" > start_jupyter.sh && \
-    chmod +x start_jupyter.sh 
+    echo "jupyter notebook --ip='0.0.0.0' --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''" > /workspace/start_jupyter.sh && \
+    chmod +x /workspace/start_jupyter.sh 
 
 RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v1.1.5/zsh-in-docker.sh)" && \
     echo "zsh" >> ~/.bashrc
@@ -31,4 +32,4 @@ COPY .zshrc /root/.zshrc
 
 EXPOSE 8888 3000
 
-CMD ["./start_jupyter.sh", "--allow-root"]
+CMD ["./start_jupyter.sh","--allow-root"]
