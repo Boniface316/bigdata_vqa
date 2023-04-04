@@ -231,7 +231,7 @@ def create_Hamiltonian_for_K2(G, weights: np.ndarray, nodes, add_identity=False)
         H = 0 * qml.Identity(0)
 
     for i, j in G.edges():
-        weight = G[i][j]["weight"][0]
+        weight = G[i][j]["weight"]#[0]
         H += weight * (qml.PauliZ(i) @ qml.PauliZ(j))
 
     return qml.Hamiltonian(H.coeffs, H.ops)
