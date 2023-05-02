@@ -1,26 +1,32 @@
 import os
 import pickle
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
-from sklearn.datasets import make_blobs
+import pickle
+from scipy.stats import multivariate_normal
 
 
 class DataUtils:
-    def __init__(self, data_folder: str = None):
+    def __init__(self, data_folder: str = None, random_seed: int = 1000):
         if data_folder is None:
             self.data_folder = os.getcwd()
         else:
             self.data_folder = data_folder
 
-    def create_new_data_set(
+        self.random_seed = random_seed
+
+    def create_dataset(
         self,
         n_samples: int,
-        centers: int,
-        n_features: int,
-        random_state: int = 10,
+        covariance_values: List[float] = [-0.8, -0.8],
         save_file: bool = True,
+        n_features: int = 2,
+        number_of_samples_from_distribution: int = 500,
+        file_name : str = "data.pickle",
+        mean_array: np.ndarray = np.array([[0,0], [7,1]])
+
     ):
         """
         Create a new data set
@@ -36,23 +42,52 @@ class DataUtils:
             created data vector
         """
 
-        X, y = make_blobs(
-            n_samples=n_samples,
-            centers=centers,
-            n_features=n_features,
-            random_state=random_state,
-        )
-        data_vec_pd = pd.DataFrame(dict(x=X[:, 0], y=X[:, 1]))
-        data_vectors = data_vec_pd.to_numpy()
+        random_seed=self.random_seed
+    
+        X = np.zeros((n_samples,n_features))
+    
+        # Iterating over different covariance values
+        for idx, val in enumerate(covariance_values):
+            
+            covariance_matrix = np.array([[1, val], [val, 1]])
+            
+             # Generating a Gaussian bivariate distribution
+             # with given mean and covariance matrix
+            distr = multivariate_normal(cov = covariance_matrix, mean = mean_array[idx], seed = random_seed)
+            
+            # Generating 500 samples out of the
+            # distribution
+            data = distr.rvs(size = number_of_samples_from_distribution)
+            
+            X[number_of_samples_from_distribution*idx:number_of_samples_from_distribution*(idx+1)][:] = data
+
         if save_file:
-            file_name = (
-                self.data_folder
-                + "/data/centers_"
-                + str(centers)
-                + "_original_data.npy"
-            )
-            np.save(file_name, data_vectors)
-        return data_vectors
+            # check if the data folder exists, if not create it
+            if not os.path.exists(self.data_folder + "/data/"):
+                os.makedirs(self.data_folder + "/data/")
+            # save X as a pickle file in the data folder
+            with open(f"{self.data_folder}/{file_name}", 'wb') as handle:
+                pickle.dump(X, handle)
+                print(f"Data saved in {self.data_folder}/{file_name}")
+            
+        return X
+
+    def load_dataset(self, file_name:str = "dataset.pickle"):
+
+        """
+        Load a dataset
+
+        Args:
+            file_name (str, optional): file name of the dataset. Defaults to "dataset.pickle".
+
+        Returns:
+            loaded dataset
+        """
+        with open(f"{self.data_folder}/{file_name}", 'rb') as handle:
+            X = pickle.load(handle)
+            print(f"Data loaded from {self.data_folder}/{file_name}")
+        return X
+
 
     def get_raw_data(self, centers: int):
         """
