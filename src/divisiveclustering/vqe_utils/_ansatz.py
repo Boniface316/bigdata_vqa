@@ -4,6 +4,7 @@ import networkx as nx
 import numpy as np
 from typing import Optional
 import pandas as pd
+from divisiveclustering.coresetsUtils import get_cv_cw, gen_coreset_graph
 
 def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
     """QAOA ansatz for maxcut"""
