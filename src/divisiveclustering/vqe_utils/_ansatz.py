@@ -1,10 +1,13 @@
+from typing import Optional
+
 import cudaq
-from cudaq import spin
 import networkx as nx
 import numpy as np
-from typing import Optional
 import pandas as pd
-from divisiveclustering.coresetsUtils import get_cv_cw, gen_coreset_graph
+from cudaq import spin
+
+from divisiveclustering.coresetsUtils import gen_coreset_graph, get_cv_cw
+
 
 def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
     """QAOA ansatz for maxcut"""
@@ -16,12 +19,13 @@ def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
     
     for i in range(layer_count):
 
-        for j in range(number_of_qubits):
-            kernel.rz(thetas[theta_position], qreg[j % number_of_qubits])
-            kernel.rx(thetas[theta_position + 1], qreg[j % number_of_qubits])
+        for j in range(1,number_of_qubits):
+            breakpoint()
+            kernel.ry(thetas[theta_position], qreg[j % number_of_qubits])
+            kernel.rz(thetas[theta_position + 1], qreg[j % number_of_qubits])
             kernel.cx(qreg[j], qreg[(j + 1) % number_of_qubits])
-            kernel.rz(thetas[theta_position + 2], qreg[j % number_of_qubits])
-            kernel.rx(thetas[theta_position + 3], qreg[j % number_of_qubits])
+            kernel.ry(thetas[theta_position + 2], qreg[j % number_of_qubits])
+            kernel.rz(thetas[theta_position + 3], qreg[j % number_of_qubits])
             theta_position += 4
 
     return kernel
@@ -74,4 +78,4 @@ def create_Hamiltonian_for_K2(G, qubits, weights: np.ndarray = None,add_identity
         weight = G[i][j]["weight"]#[0]
         H += weight * (spin.z(i) * spin.z(j))
         
-    return H[0]
+    return H
