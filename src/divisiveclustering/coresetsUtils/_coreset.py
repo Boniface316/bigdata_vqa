@@ -123,6 +123,7 @@ class Coreset:
         kmeans = KMeans(n_clusters=2).fit(coreset_vectors, sample_weight=sample_weight)
         return self.get_cost(data_vectors, kmeans.cluster_centers_)
 
+# TODO: Investigate which out of the returns are actually needed. 
 
 def gen_coreset_graph(
     coreset_vectors: np.ndarray,

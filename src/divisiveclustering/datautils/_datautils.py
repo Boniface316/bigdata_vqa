@@ -1,6 +1,6 @@
 import os
 import pickle
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -83,9 +83,17 @@ class DataUtils:
         Returns:
             loaded dataset
         """
-        with open(f"{self.data_folder}/{file_name}", 'rb') as handle:
-            X = pickle.load(handle)
-            print(f"Data loaded from {self.data_folder}/{file_name}")
+        # split the file name to get the extension. If the extension is not pickle, raise an error
+        file_extension = file_name.split(".")[-1]
+        
+        if file_extension == "pickle":
+            with open(f"{self.data_folder}/{file_name}", 'rb') as handle:
+                X = pickle.load(handle)
+                print(f"Data loaded from {self.data_folder}/{file_name}")
+        elif file_extension == "npy":
+            X = np.load(f"{self.data_folder}/{file_name}")
+        else:
+            raise ValueError("File extension not supported. Please use pickle or npy")
         return X
 
 
@@ -114,7 +122,6 @@ class DataUtils:
         best_coreset_vectors: np.ndarray,
         best_coreset_weights: np.ndarray,
         coreset_numbers: int,
-        centers: int,
     ) -> None:
         """
             Save coresets
@@ -126,22 +133,9 @@ class DataUtils:
             centers: number of blobs
         """
 
-        coreset_vector_file = (
-            self.data_folder
-            + "/data/"
-            + str(coreset_numbers)
-            + "_coreset_"
-            + str(centers)
-            + "centers_vectors.npy"
-        )
-        coreset_weight_file = (
-            self.data_folder
-            + "/data/"
-            + str(coreset_numbers)
-            + "_coreset_"
-            + str(centers)
-            + "centers_weights.npy"
-        )
+        coreset_vector_file = f"{self.data_folder}/data/{coreset_numbers}_coreset_vectors.npy"
+        
+        coreset_weight_file = f"{self.data_folder}/data/{coreset_numbers}_coreset_weights.npy"
 
         np.save(coreset_vector_file, best_coreset_vectors)
         np.save(coreset_weight_file, best_coreset_weights)
@@ -187,15 +181,32 @@ class DataUtils:
 
         return coreset_vectors, coreset_weights, data_vec
 
+    def _save_VQE(self, hc : list):
+        parent_directory = f"{self.data_folder}/data/VQE"
+        if not os.path.exists(parent_directory):
+            os.makedirs(parent_directory)
+        file_name = f"{parent_directory}/VQE_data.pickle"
+        with open(file_name, "wb") as handle:
+            pickle.dump(hc, handle)
+            print(f"Data saved in {file_name}")
+
+    def _load_VQE(self,file_name: str = None):
+        if file_name is None:
+            file_name = f"{self.data_folder}/data/VQE/VQE_data.pickle"
+        with open(file_name, "rb") as handle:
+            hc = pickle.load(handle)
+            print(f"Data loaded from {file_name}")
+        return hc
+
     def save_object(
         self,
         type: str,
-        coreset_numbers: int,
-        centers: int,
-        depth: int,
         hc: list,
-        df: pd.DataFrame,
-        str_prob_dict: Dict,
+        coreset_numbers: int = None,
+        centers: int = None,
+        depth: int = None,
+        df: pd.DataFrame = None,
+        str_prob_dict: Dict = None,
     ):
 
         """_summary_
@@ -209,67 +220,74 @@ class DataUtils:
             df: dataframe of the coresets
             str_prob_dict: Dictionary with probabilities
         """
-        file_name_hc = (
-            self.data_folder
-            + "/data/"
-            + type
-            + "/"
-            + type
-            + "_hc_coreset_"
-            + str(coreset_numbers)
-            + "_centers_"
-            + str(centers)
-            + "_p_"
-            + str(depth)
-            + ".pickle"
-        )
-        open_file = open(file_name_hc, "wb")
-        pickle.dump(hc, open_file)
-        open_file.close()
+        if type == "VQE":
+            self._save_VQE(hc)
 
-        file_name_pd = (
-            self.data_folder
-            + "/data/"
-            + type
-            + "/"
-            + type
-            + "_pd_coreset_"
-            + str(coreset_numbers)
-            + "_centers_"
-            + str(centers)
-            + "_p_"
-            + str(depth)
-            + ".pickle"
-        )
-        open_file = open(file_name_pd, "wb")
-        pickle.dump(df, open_file)
-        open_file.close()
+        else:
 
-        file_name_dict = (
-            self.data_folder
-            + "/data/"
-            + type
-            + "/"
-            + type
-            + "_probs_dict_coreset_"
-            + str(coreset_numbers)
-            + "_centers_"
-            + str(centers)
-            + "_p_"
-            + str(depth)
-            + ".pickle"
-        )
-        open_file = open(file_name_dict, "wb")
-        pickle.dump(str_prob_dict, open_file)
-        open_file.close()
+            
+            file_name_hc = (
+                self.data_folder
+                + "/data/"
+                + type
+                + "/"
+                + type
+                + "_hc_coreset_"
+                + str(coreset_numbers)
+                + "_centers_"
+                + str(centers)
+                + "_p_"
+                + str(depth)
+                + ".pickle"
+            )
+            open_file = open(file_name_hc, "wb")
+            pickle.dump(hc, open_file)
+            open_file.close()
+
+            file_name_pd = (
+                self.data_folder
+                + "/data/"
+                + type
+                + "/"
+                + type
+                + "_pd_coreset_"
+                + str(coreset_numbers)
+                + "_centers_"
+                + str(centers)
+                + "_p_"
+                + str(depth)
+                + ".pickle"
+            )
+            open_file = open(file_name_pd, "wb")
+            pickle.dump(df, open_file)
+            open_file.close()
+
+            file_name_dict = (
+                self.data_folder
+                + "/data/"
+                + type
+                + "/"
+                + type
+                + "_probs_dict_coreset_"
+                + str(coreset_numbers)
+                + "_centers_"
+                + str(centers)
+                + "_p_"
+                + str(depth)
+                + ".pickle"
+            )
+            open_file = open(file_name_dict, "wb")
+            pickle.dump(str_prob_dict, open_file)
+            open_file.close()
 
     def load_object(
         self,
         output_type: str,
-        coreset_numbers: int,
-        centers: int,
-        depth: int,
-        obj_type: str,
+        obj_type: Optional[str] = "hc",
+        coreset_numbers: Optional[int] = None,
+        centers: Optional[int] =None,
+        depth: Optional[int] = None,
+        
     ):
         """
         Load the object
@@ -291,28 +309,32 @@ class DataUtils:
         if obj_type not in obj_types:
             raise RuntimeError("Accepted obj_types are {}".format(obj_types))
         else:
-            obj_type = "_" + obj_type + "_coreset_"
 
-            file_name_hc = (
-                self.data_folder
-                + "/data/"
-                + output_type
-                + "/"
-                + output_type
-                + obj_type
-                + str(coreset_numbers)
-                + "_centers_"
-                + str(centers)
-                + "_p_"
-                + str(depth)
-                + ".pickle"
-            )
-            # print(file_name_hc)
-            open_file = open(file_name_hc, "rb")
-            loaded_list = pickle.load(open_file)
-            open_file.close()
+            if output_type == "VQE":
+                return self._load_VQE()
+            else:
+                obj_type = "_" + obj_type + "_coreset_"
 
-        return loaded_list
+                file_name_hc = (
+                    self.data_folder
+                    + "/data/"
+                    + output_type
+                    + "/"
+                    + output_type
+                    + obj_type
+                    + str(coreset_numbers)
+                    + "_centers_"
+                    + str(centers)
+                    + "_p_"
+                    + str(depth)
+                    + ".pickle"
+                )
+                # print(file_name_hc)
+                open_file = open(file_name_hc, "rb")
+                loaded_list = pickle.load(open_file)
+                open_file.close()
+
+                return loaded_list
 
     def get_plot_name(
         self,
