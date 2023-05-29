@@ -16,7 +16,8 @@ def create_clusters(
     cv: np.ndarray = None,
     idx_vals: int = None,
 ):
-    """_summary_
+    """
+    Creates clusters based on the type of algorithm
 
     Args:
         type: Type of algorithm to use to perform clustering
