@@ -7,4 +7,5 @@ from ._quantumutils import (
     get_probs,
     probs_to_table,
     vqe_ansatz,
+    get_probs_table
 )
