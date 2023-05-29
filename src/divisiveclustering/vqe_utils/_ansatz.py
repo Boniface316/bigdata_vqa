@@ -20,10 +20,11 @@ def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
     for i in range(layer_count):
 
         for j in range(1,number_of_qubits):
-            breakpoint()
             kernel.ry(thetas[theta_position], qreg[j % number_of_qubits])
             kernel.rz(thetas[theta_position + 1], qreg[j % number_of_qubits])
-            kernel.cx(qreg[j], qreg[(j + 1) % number_of_qubits])
+            if j < number_of_qubits - 1:
+                kernel.cx(qreg[j], qreg[(j + 1) % number_of_qubits])
+#            kernel.cx(qreg[j], qreg[(j + 1) % number_of_qubits])
             kernel.ry(thetas[theta_position + 2], qreg[j % number_of_qubits])
             kernel.rz(thetas[theta_position + 3], qreg[j % number_of_qubits])
             theta_position += 4
