@@ -497,13 +497,15 @@ def approximate_n_trials(G, data, coreset, weights, depth, num_runs):
     Finds best cost on num_runs trials on a coreset.
     '''
     best_cost = np.inf
+    best_centres = np.array([0,0,0])
     for i in range(num_runs):
         approx_centres = approx_clusters(G, coreset, depth, weights=weights)
         cost_approx = cluster_cost_whole_set(data, approx_centres)
         if cost_approx < best_cost:
             best_cost = cost_approx
+            best_centres = approx_centres
 
-    return best_cost
+    return (best_cost, best_centres)
 
 
 
