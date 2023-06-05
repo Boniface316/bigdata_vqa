@@ -11,14 +11,16 @@ import numpy as np
 import warnings
 import datetime
 import sys
+import networkx as nx
+from cudaq import spin
 
-cudaq.set_qpu("custatevec")
+
 
 warnings.filterwarnings("ignore")
 
-# time_dict = {}
-# simulator_options = ["custatevec", "custatevec_f32"]
-
+time_dict = {}
+simulator_options = [None, "custatevec", "custatevec_f32", "cuquantum_mgpu"]
+#simulator_options = ["cuquantum"]
 
 number_of_qubits = int(sys.argv[1])
 layer_count = 1
@@ -26,31 +28,19 @@ parameter_count = 4 * layer_count * number_of_qubits
 shots = int(sys.argv[2])
 
 
-data_utils = DataUtils()
+def create_Hamiltonian_for_K2(number_of_qubits):
+    G = nx.complete_graph(number_of_qubits)
+    H = 0
 
-raw_data = data_utils.create_dataset(n_samples=1000, save_file=False)
+    for edge in G.edges():
+        weight = np.random.uniform(0.0, 1.0)
+        H += weight * (spin.z(edge[0]) * spin.z(edge[1]))
+    
+    return H[0]
 
-coresets = Coreset()
 
-coreset_vectors, coreset_weights = coresets.get_coresets(
-    data_vectors=raw_data,
-    number_of_runs=10,
-    coreset_numbers=number_of_qubits,
-    size_vec_list=10,
-)
 
-best_coreset_vectors, best_coreset_weights = coresets.get_best_coresets(
-    raw_data, coreset_vectors, coreset_weights
-)
-
-normalized_cv = normalize_np(best_coreset_vectors, centralize=True)
-normalized_cw = normalize_np(best_coreset_weights, centralize=False)
-
-coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(
-    normalized_cv, normalized_cw, metric="dot"
-)
-
-H = create_Hamiltonian_for_K2(G, number_of_qubits, weights)
+H = create_Hamiltonian_for_K2(number_of_qubits)
 
 optimizer = cudaq.optimizers.COBYLA()
 optimizer.initial_parameters = np.random.uniform(
@@ -59,24 +49,32 @@ optimizer.initial_parameters = np.random.uniform(
 print(optimizer.initial_parameters)
 
 # breakpoint()
+for simulator in simulator_options:
+    if simulator is not None:
+        cudaq.set_qpu(simulator)
+    print(datetime.datetime.now())
+    start_time = datetime.datetime.now()
+    optimal_expectation, optimal_parameters = cudaq.vqe(
+        kernel=kernel_two_local(number_of_qubits, layer_count),
+        spin_operator=H,
+        optimizer=optimizer,
+        parameter_count=parameter_count,
+        shots=shots,
+    )
 
-print(datetime.datetime.now())
-start_time = datetime.datetime.now()
-optimal_expectation, optimal_parameters = cudaq.vqe(
-    kernel=kernel_two_local(number_of_qubits, layer_count),
-    spin_operator=H,
-    optimizer=optimizer,
-    parameter_count=parameter_count,
-    shots=shots,
-)
+    counts = cudaq.sample(
+        kernel_two_local(number_of_qubits, layer_count),
+        optimal_parameters,
+        shots_count=shots,
+    )
 
-counts = cudaq.sample(
-    kernel_two_local(number_of_qubits, layer_count),
-    optimal_parameters,
-    shots_count=shots,
-)
+    counts.dump()
 
-counts.dump()
+    print(f"end time:{datetime.datetime.now()}")
+    print(f"total time:{datetime.datetime.now() - start_time}")
+    if simulator is None:
+        simulator = "cpu"
+    time_dict[simulator] = datetime.datetime.now() - start_time
 
-print(f"end time:{datetime.datetime.now()}")
-print(f"total time:{datetime.datetime.now() - start_time}")
+
+print(time_dict)
