@@ -1,19 +1,67 @@
-from divisiveclustering.datautils import DataUtils
-from divisiveclustering.coresetsUtils import Coreset, normalize_np, gen_coreset_graph
-from divisiveclustering.vqe_utils import (
-    kernel_two_local,
-    create_Hamiltonian_for_K2,
-    get_Hamil_variables,
-)
-from divisiveclustering.quantumutils import get_probs_table
 import cudaq
 import numpy as np
 import warnings
 import datetime
 import sys
-import networkx as nx
+import os
+import pickle
+from typing import Dict, List
 from cudaq import spin
+import networkx as nx
+from typing import Optional
+import pandas as pd
+from scipy.stats import multivariate_normal
 
+from typing import List
+
+import networkx as nx
+import numpy as np
+import pandas as pd
+from sklearn.cluster import KMeans
+
+
+def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
+    """QAOA ansatz for maxcut"""
+    kernel, thetas = cudaq.make_kernel(list)
+    qreg = kernel.qalloc(number_of_qubits)
+
+    # Loop over the layers
+    theta_position = 0
+    
+    for i in range(layer_count):
+
+        for j in range(number_of_qubits):
+            kernel.rz(thetas[theta_position], qreg[j % number_of_qubits])
+            kernel.rx(thetas[theta_position + 1], qreg[j % number_of_qubits])
+            kernel.cx(qreg[j], qreg[(j + 1) % number_of_qubits])
+            kernel.rz(thetas[theta_position + 2], qreg[j % number_of_qubits])
+            kernel.rx(thetas[theta_position + 3], qreg[j % number_of_qubits])
+            theta_position += 4
+
+    return kernel
+
+
+def create_Hamiltonian_for_K2(qubits):
+    """
+    Generate Hamiltonian for k=2
+
+    Args:
+        G: Problem as a graph
+        weights: Edge weights
+        nodes: nodes of the graph
+        add_identity: Add identiy or not. Defaults to False.
+
+    Returns:
+        _type_: _description_
+    """
+    H = 0
+    G = nx.complete_graph(qubits)
+
+    for i, j in G.edges():
+        weight = np.random.uniform(0, 1)
+        H += weight * (spin.z(i) * spin.z(j))
+        
+    return H[0]
 
 
 warnings.filterwarnings("ignore")
@@ -27,26 +75,13 @@ layer_count = 1
 parameter_count = 4 * layer_count * number_of_qubits
 shots = int(sys.argv[2])
 
-
-def create_Hamiltonian_for_K2(number_of_qubits):
-    G = nx.complete_graph(number_of_qubits)
-    H = 0
-
-    for edge in G.edges():
-        weight = np.random.uniform(0.0, 1.0)
-        H += weight * (spin.z(edge[0]) * spin.z(edge[1]))
-    
-    return H[0]
-
-
-
 H = create_Hamiltonian_for_K2(number_of_qubits)
 
 optimizer = cudaq.optimizers.COBYLA()
 optimizer.initial_parameters = np.random.uniform(
     -np.pi / 8.0, np.pi / 8.0, parameter_count
 )
-print(optimizer.initial_parameters)
+
 
 # breakpoint()
 for simulator in simulator_options:
@@ -61,14 +96,6 @@ for simulator in simulator_options:
         parameter_count=parameter_count,
         shots=shots,
     )
-
-    counts = cudaq.sample(
-        kernel_two_local(number_of_qubits, layer_count),
-        optimal_parameters,
-        shots_count=shots,
-    )
-
-    counts.dump()
 
     print(f"end time:{datetime.datetime.now()}")
     print(f"total time:{datetime.datetime.now() - start_time}")

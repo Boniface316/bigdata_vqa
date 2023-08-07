@@ -1,9 +1,6 @@
 import cudaq
-from cudaq import spin
-
 import numpy as np
-
-cudaq.set_qpu("custatevec_f32")
+from cudaq import spin
 
 # Here we build up a kernel for QAOA with p layers, with each layer
 # containing the alternating set of unitaries corresponding to the problem
@@ -19,15 +16,17 @@ cudaq.set_qpu("custatevec_f32")
 # The maxcut for this problem is 0101 or 1010.
 
 # The problem Hamiltonian
-hamiltonian = 0.5 * spin.z(0) * spin.z(1) + 0.5 * spin.z(1) * spin.z(2) \
-       + 0.5 * spin.z(0) * spin.z(3) + 0.5 * spin.z(2) * spin.z(3)
+hamiltonian = (
+    0.5 * spin.z(0) * spin.z(1)
+    + 0.5 * spin.z(1) * spin.z(2)
+    + 0.5 * spin.z(0) * spin.z(3)
+    + 0.5 * spin.z(2) * spin.z(3)
+)
 
 # Problem parameters.
-qubit_count: int = 10
+qubit_count: int = 4
 layer_count: int = 2
 parameter_count: int = 2 * layer_count
-
-
 
 
 def kernel_qaoa() -> cudaq.Kernel:
@@ -56,8 +55,9 @@ def kernel_qaoa() -> cudaq.Kernel:
 
 # Specify the optimizer and its initial parameters.
 optimizer = cudaq.optimizers.COBYLA()
-optimizer.initial_parameters = np.random.uniform(-np.pi / 8.0, np.pi / 8.0,
-                                                 parameter_count)
+optimizer.initial_parameters = np.random.uniform(
+    -np.pi / 8.0, np.pi / 8.0, parameter_count
+)
 print("Initial parameters = ", optimizer.initial_parameters)
 
 # Pass the kernel, spin operator, and optimizer to `cudaq.vqe`.
@@ -65,7 +65,8 @@ optimal_expectation, optimal_parameters = cudaq.vqe(
     kernel=kernel_qaoa(),
     spin_operator=hamiltonian,
     optimizer=optimizer,
-    parameter_count=parameter_count)
+    parameter_count=parameter_count,
+)
 
 # Print the optimized value and its parameters
 print("Optimal value = ", optimal_expectation)
@@ -74,3 +75,8 @@ print("Optimal parameters = ", optimal_parameters)
 # Sample the circuit using the optimized parameters
 counts = cudaq.sample(kernel_qaoa(), optimal_parameters)
 counts.dump()
+
+print("----")
+for i in counts.dump():
+    
+    print(i.values())

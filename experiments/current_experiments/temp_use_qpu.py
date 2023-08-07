@@ -2,8 +2,7 @@ import cudaq
 from cudaq import spin
 
 import numpy as np
-
-cudaq.set_qpu("custatevec_f32")
+import networkx as nx
 
 # Here we build up a kernel for QAOA with p layers, with each layer
 # containing the alternating set of unitaries corresponding to the problem
@@ -19,15 +18,26 @@ cudaq.set_qpu("custatevec_f32")
 # The maxcut for this problem is 0101 or 1010.
 
 # The problem Hamiltonian
-hamiltonian = 0.5 * spin.z(0) * spin.z(1) + 0.5 * spin.z(1) * spin.z(2) \
-       + 0.5 * spin.z(0) * spin.z(3) + 0.5 * spin.z(2) * spin.z(3)
 
-# Problem parameters.
-qubit_count: int = 10
+qubit_count: int = 25
 layer_count: int = 2
 parameter_count: int = 2 * layer_count
 
+cudaq.set_qpu("cuquantum_mgpu")
 
+def create_hamiltonian(qubit_count):
+    # create a complete graph
+    graph = nx.complete_graph(qubit_count)
+    # create the hamiltonian
+    hamiltonian = 0
+    for edge in graph.edges:
+        hamiltonian += np.random.random(1) * spin.z(edge[0]) * spin.z(edge[1])
+    return hamiltonian[0]
+
+
+hamiltonian = create_hamiltonian(qubit_count)
+
+# Problem parameters.
 
 
 def kernel_qaoa() -> cudaq.Kernel:
