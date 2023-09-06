@@ -1,4 +1,6 @@
 import cudaq
+import numpy as np
+
 
 def get_optimizer(max_iterations, layer_count, qubits):
     parameter_count = 4 * layer_count * (qubits - 1)

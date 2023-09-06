@@ -16,7 +16,6 @@ class Coreset:
         coreset_numbers: int,
         size_vec_list: int = 100,
     ):
-
         B = self.get_bestB(
             data_vectors=data_vectors,
             number_of_runs=number_of_runs,
@@ -33,7 +32,6 @@ class Coreset:
         return [coreset_vectors, coreset_weights]
 
     def get_bestB(self, data_vectors: np.ndarray, number_of_runs: int, k: int):
-
         bestB, bestB_cost = None, np.inf
 
         # pick B with least error from num_runs runs
@@ -59,14 +57,12 @@ class Coreset:
         return B
 
     def get_cost(self, data_vectors, B):
-
         cost = 0
         for x in data_vectors:
             cost += self.dist_to_B(x, B) ** 2
         return cost
 
     def dist_to_B(self, x, B, return_closest_index=False):
-
         min_dist = np.inf
         closest_index = -1
         for i, b in enumerate(B):
@@ -79,17 +75,20 @@ class Coreset:
         return min_dist
 
     def BFL16(self, P, B, m):
-
         num_points_in_clusters = {i: 0 for i in range(len(B))}
         sum_distance_to_closest_cluster = 0
         for p in P:
-            min_dist, closest_index = self.dist_to_B(p, B, return_closest_index=True)
+            min_dist, closest_index = self.dist_to_B(
+                p, B, return_closest_index=True
+            )
             num_points_in_clusters[closest_index] += 1
             sum_distance_to_closest_cluster += min_dist**2
 
         Prob = np.zeros(len(P))
         for i, p in enumerate(P):
-            min_dist, closest_index = self.dist_to_B(p, B, return_closest_index=True)
+            min_dist, closest_index = self.dist_to_B(
+                p, B, return_closest_index=True
+            )
             Prob[i] += min_dist**2 / (2 * sum_distance_to_closest_cluster)
             Prob[i] += 1 / (2 * len(B) * num_points_in_clusters[closest_index])
 
@@ -102,8 +101,9 @@ class Coreset:
 
         return [P[i] for i in chosen_indices], weights
 
-    def _get_best_coresets(self, data_vectors, coreset_vectors, coreset_weights):
-
+    def _get_best_coresets(
+        self, data_vectors, coreset_vectors, coreset_weights
+    ):
         cost_coreset = [
             self.kmeans_cost(
                 data_vectors,
@@ -118,18 +118,23 @@ class Coreset:
 
         return best_coreset_vectors, best_coreset_weights
 
-    def get_best_coresets(self,data_vectors, number_of_runs, coreset_numbers, size_vec_list = 10):
-        coreset_vectors, coreset_weights = self.get_coresets(data_vectors, number_of_runs, coreset_numbers, size_vec_list)
-        
-        coreset_vectors, coreset_weights = self._get_best_coresets(data_vectors, coreset_vectors, coreset_weights)
+    def get_best_coresets(
+        self, data_vectors, number_of_runs, coreset_numbers, size_vec_list=10
+    ):
+        coreset_vectors, coreset_weights = self.get_coresets(
+            data_vectors, number_of_runs, coreset_numbers, size_vec_list
+        )
+
+        coreset_vectors, coreset_weights = self._get_best_coresets(
+            data_vectors, coreset_vectors, coreset_weights
+        )
 
         return np.array(coreset_vectors), np.array(coreset_weights)
 
-
-
     def kmeans_cost(self, data_vectors, coreset_vectors, sample_weight=None):
-
-        kmeans = KMeans(n_clusters=2).fit(coreset_vectors, sample_weight=sample_weight)
+        kmeans = KMeans(n_clusters=2).fit(
+            coreset_vectors, sample_weight=sample_weight
+        )
         return self.get_cost(data_vectors, kmeans.cluster_centers_)
 
 
@@ -234,7 +239,6 @@ def gen_coreset_graph(
 
 
 def get_cv_cw(cv: np.ndarray, cw: np.ndarray, idx_vals: int, normalize=True):
-
     """
     Get the coreset vector and weights from index value of the hierarchy
 
@@ -259,7 +263,6 @@ def get_cv_cw(cv: np.ndarray, cw: np.ndarray, idx_vals: int, normalize=True):
 
 
 def normalize_np(cv: np.ndarray, centralize=False):
-
     """
         Normalize and centralize the data
 
@@ -283,14 +286,26 @@ def normalize_np(cv: np.ndarray, centralize=False):
     return cv_norm
 
 
-def get_coreset_vector_df(coreset_vectors: np.ndarray,index_iteration_counter ):
+def get_coreset_vector_df(coreset_vectors: np.ndarray, index_iteration_counter):
     coreset_vectors_df = pd.DataFrame(coreset_vectors, columns=list("XY"))
 
-    coreset_vectors_df["Name"] = [chr(index_iteration_counter + 65) for i in coreset_vectors_df]
+    coreset_vectors_df["Name"] = [
+        chr(index_iteration_counter + 65) for i in coreset_vectors_df.index
+    ]
 
     return coreset_vectors_df
 
-def get_coreset_vectors_to_evaluate(coreset_vector_df, hierarchial_clustering_sequence, index_iteration_counter):
-    index_values_to_evaluate = hierarchial_clustering_sequence[index_iteration_counter]
-    coreset_vectors_to_evaluate = coreset_vector_df.iloc[index_values_to_evaluate]
-    return coreset_vectors_to_evaluate.drop(columns=["Name"]), index_values_to_evaluate
+
+def get_coreset_vectors_to_evaluate(
+    coreset_vector_df, hierarchial_clustering_sequence, index_iteration_counter
+):
+    index_values_to_evaluate = hierarchial_clustering_sequence[
+        index_iteration_counter
+    ]
+    coreset_vectors_to_evaluate = coreset_vector_df.iloc[
+        index_values_to_evaluate
+    ]
+    return (
+        coreset_vectors_to_evaluate.drop(columns=["Name"]),
+        index_values_to_evaluate,
+    )

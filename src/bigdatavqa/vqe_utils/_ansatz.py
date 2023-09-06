@@ -1,9 +1,13 @@
+from typing import Optional
+
 import cudaq
-from cudaq import spin
 import networkx as nx
 import numpy as np
-from typing import Optional
 import pandas as pd
+from cudaq import spin
+
+from ..coreset._coreset import gen_coreset_graph, get_cv_cw
+
 
 def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
     """QAOA ansatz for maxcut"""
@@ -12,10 +16,9 @@ def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
 
     # Loop over the layers
     theta_position = 0
-    
-    for i in range(layer_count):
 
-        for j in range(number_of_qubits):
+    for i in range(layer_count):
+        for j in range(1, number_of_qubits):
             kernel.rz(thetas[theta_position], qreg[j % number_of_qubits])
             kernel.rx(thetas[theta_position + 1], qreg[j % number_of_qubits])
             kernel.cx(qreg[j], qreg[(j + 1) % number_of_qubits])
@@ -26,7 +29,7 @@ def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
     return kernel
 
 
-def get_Hamiltoniam_variables(
+def get_Hamiltonian_variables(
     coreset_vectors: np.ndarray,
     coreset_weights: np.ndarray,
     index_vals_temp: Optional[int] = None,
@@ -45,8 +48,10 @@ def get_Hamiltoniam_variables(
        Graph, weights and qubits
     """
     if new_df is not None and index_vals_temp is not None:
-        coreset_weights, coreset_vectors = get_cv_cw(coreset_vectors, coreset_weights, index_vals_temp)
-    
+        coreset_weights, coreset_vectors = get_cv_cw(
+            coreset_vectors, coreset_weights, index_vals_temp
+        )
+
     coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(
         coreset_vectors, coreset_weights, metric="dot"
     )
@@ -54,7 +59,10 @@ def get_Hamiltoniam_variables(
 
     return G, weights, qubits
 
-def create_Hamiltonian_for_K2(G, qubits, weights: np.ndarray = None,add_identity=False):
+
+def create_Hamiltonian_for_K2(
+    G, qubits, weights: np.ndarray = None, add_identity=False
+):
     """
     Generate Hamiltonian for k=2
 
@@ -70,7 +78,7 @@ def create_Hamiltonian_for_K2(G, qubits, weights: np.ndarray = None,add_identity
     H = 0
 
     for i, j in G.edges():
-        weight = G[i][j]["weight"]#[0]
+        weight = G[i][j]["weight"]  # [0]
         H += weight * (spin.z(i) * spin.z(j))
-        
-    return H[0]
+
+    return H
