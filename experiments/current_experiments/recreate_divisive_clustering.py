@@ -1,6 +1,10 @@
+import argparse
 import warnings
+from pathlib import Path
 
 import cudaq
+from loguru import logger
+
 from bigdatavqa.coreset import (
     Coreset,
     get_coreset_vector_df,
@@ -8,98 +12,182 @@ from bigdatavqa.coreset import (
 )
 from bigdatavqa.datautils import DataUtils
 from bigdatavqa.optimizer import get_optimizer
-from bigdatavqa.postexecution import get_probs_table
+from bigdatavqa.postexecution import (
+    add_children_to_hierachial_clustering,
+    get_best_bitstring,
+)
 from bigdatavqa.vqe_utils import (
     create_Hamiltonian_for_K2,
     get_Hamiltonian_variables,
     kernel_two_local,
 )
-from loguru import logger
+
+parser = argparse.ArgumentParser(description="Divisive clustering circuit parameters")
+
+parser.add_argument("--qubits", type=int, required=True, help="Number of qubits")
+parser.add_argument("--layers", type=int, required=True, help="Number of layers")
+parser.add_argument("--shots", type=int, required=True, help="Number of shots")
+parser.add_argument(
+    "--iterations", type=int, required=True, help="Number of iterations"
+)
+parser.add_argument("--data_location", type=str, required=False, help="Data location")
+args = parser.parse_args()
+
 
 logger.add(
-    ".logs/recreate_divisive_clustering.log",
+    ".logs/divisive_clustering.log",
     rotation="10 MB",
     compression="zip",
     level="INFO",
+    retention="10 days",
 )
 
-number_of_qubits = 7
-layer_count = 1
 
-index_iteration_counter = 0
-single_clusters = 0
+number_of_qubits = args.qubits
+layer_count = args.layers
+max_shots = args.shots
+max_iterations = args.iterations
+if args.data_location is None:
+    data_location = "data"
+else:
+    data_location = args.data_location
+
 max_iterations = 100
-max_shots = 100
-error_counter = 0
+number_of_runs = 100
+size_vec_list = 10
+
+logger.info(f"Number of qubits: {number_of_qubits}")
+logger.info(f"Number of layers: {layer_count}")
+logger.info(f"Number of shots: {max_shots}")
+logger.info(f"Number of iterations: {max_iterations}")
+logger.info(f"Data location: {data_location}")
 
 
-data_utils = DataUtils("data")
+def get_raw_data(data_location):
+    data_utils = DataUtils(data_location)
 
-try:
-    raw_data = data_utils.load_dataset()
-except FileNotFoundError:
-    raw_data = data_utils.create_dataset(n_samples=1000)
+    try:
+        raw_data = data_utils.load_dataset()
+    except FileNotFoundError:
+        raw_data = data_utils.create_dataset(n_samples=1000)
 
-coreset = Coreset()
+    return raw_data
 
-coreset_vectors, coreset_weights = coreset.get_best_coresets(
-    data_vectors=raw_data,
-    number_of_runs=100,
-    coreset_numbers=number_of_qubits,
-    size_vec_list=10,
-)
 
-coreset_vector_df = get_coreset_vector_df(
-    coreset_vectors, index_iteration_counter
-)
+def get_coreset_vectors(raw_data, number_of_runs, coreset_numbers, size_vec_list):
+    coreset = Coreset()
 
-index_values = [i for i in range(len(coreset_weights))]
-hierarchial_clustering_sequence = [index_values]
+    return coreset.get_best_coresets(
+        data_vectors=raw_data,
+        number_of_runs=number_of_runs,
+        coreset_numbers=coreset_numbers,
+        size_vec_list=size_vec_list,
+    )
 
-while single_clusters < len(index_values):
-    # use log to save the iteration number
-    logger.info(f"Current index iteration:{index_iteration_counter}")
 
-    if len(hierarchial_clustering_sequence[index_iteration_counter]) == 1:
-        single_clusters += 1
+def main(
+    data_location,
+    number_of_qubits,
+    layer_count,
+    max_shots,
+    max_iterations,
+    number_of_runs,
+    size_vec_list,
+):
+    index_iteration_counter = 0
+    single_clusters = 0
+
+    raw_data = get_raw_data(data_location)
+    coreset_vectors, coreset_weights = get_coreset_vectors(
+        raw_data, number_of_runs, number_of_qubits, size_vec_list
+    )
+
+    coreset_vector_df = get_coreset_vector_df(coreset_vectors, index_iteration_counter)
+
+    index_values = [i for i in range(len(coreset_weights))]
+    hierarchial_clustering_sequence = [index_values]
+
+    while single_clusters < len(index_values):
+        if len(hierarchial_clustering_sequence[index_iteration_counter]) == 1:
+            single_clusters += 1
+            logger.info(
+                f"index iteration counter : {index_iteration_counter},  Single clusters count: {single_clusters}"
+            )
+        else:
+            (
+                coreset_vectors_df_to_evaluate,
+                index_values_to_evaluate,
+            ) = get_coreset_vectors_to_evaluate(
+                coreset_vector_df,
+                hierarchial_clustering_sequence,
+                index_iteration_counter,
+            )
+            G, weights, qubits = get_Hamiltonian_variables(
+                coreset_vectors,
+                coreset_weights,
+                index_values_to_evaluate,
+                coreset_vectors_df_to_evaluate,
+            )
+            logger.info(
+                f"index iteration counter : {index_iteration_counter}, QUBITS :{qubits}, index values to evaluate: {index_values_to_evaluate}",
+            )
+
+            Hamiltonian = create_Hamiltonian_for_K2(
+                G, qubits, weights, add_identity=False
+            )
+
+            optimizer, parameter_count = get_optimizer(
+                max_iterations, layer_count, qubits
+            )
+
+            optimal_expectation, optimal_parameters = cudaq.vqe(
+                kernel=kernel_two_local(qubits, layer_count),
+                spin_operator=Hamiltonian[0],
+                optimizer=optimizer,
+                parameter_count=parameter_count,
+                shots=max_shots,
+            )
+
+            counts = cudaq.sample(
+                kernel_two_local(qubits, layer_count),
+                optimal_parameters,
+                shots_count=max_shots,
+            )
+
+            bitstring = get_best_bitstring(counts, qubits, G)
+            logger.info(
+                f"index iteration counter : {index_iteration_counter}, Bitstring: {bitstring}"
+            )
+            coreset_vectors_df_to_evaluate["cluster"] = [int(bit) for bit in bitstring]
+            hierarchial_clustering_sequence = add_children_to_hierachial_clustering(
+                coreset_vectors_df_to_evaluate, hierarchial_clustering_sequence
+            )
+            logger.info(
+                f"index iteration counter: {index_iteration_counter} Last splits: {hierarchial_clustering_sequence[-1]} {hierarchial_clustering_sequence[-2]} "
+            )
+
         index_iteration_counter += 1
-    else:
-        (
-            coreset_vectors_df_to_evaluate,
-            index_values_to_evaluate,
-        ) = get_coreset_vectors_to_evaluate(
-            coreset_vector_df,
-            hierarchial_clustering_sequence,
-            index_iteration_counter,
-        )
-        G, weights, qubits = get_Hamiltonian_variables(
-            coreset_vectors,
-            coreset_weights,
-            index_values_to_evaluate,
-            coreset_vectors_df_to_evaluate,
-        )
-        logger.info(f"Number of qubits: {qubits}")
-        Hamiltonian = create_Hamiltonian_for_K2(
-            G, qubits, weights, add_identity=False
-        )
+    logger.info(
+        f"Final results from hierarchial clustering: {hierarchial_clustering_sequence}"
+    )
 
-        optimizer, parameter_count = get_optimizer(
-            max_iterations, layer_count, qubits
-        )
 
-        optimal_expectation, optimal_parameters = cudaq.vqe(
-            kernel=kernel_two_local(qubits, layer_count),
-            spin_operator=Hamiltonian[0],
-            optimizer=optimizer,
-            parameter_count=parameter_count,
-            shots=max_shots,
-        )
+if __name__ == "__main__":
+    raw_data = get_raw_data(data_location)
+    coreset = Coreset()
+    coreset_vectors, coreset_weights = coreset.get_best_coresets(
+        data_vectors=raw_data,
+        number_of_runs=number_of_runs,
+        coreset_numbers=number_of_qubits,
+        size_vec_list=size_vec_list,
+    )
 
-        counts = cudaq.sample(
-            kernel_two_local(qubits, layer_count),
-            optimal_parameters,
-            shots_count=max_shots,
-        )
-        probs_table = get_probs_table(
-            counts, qubits, sort_values=True, remove_zero_one=True
-        )
+    main(
+        data_location,
+        number_of_qubits,
+        layer_count,
+        max_shots,
+        max_iterations,
+        number_of_runs,
+        size_vec_list,
+    )
