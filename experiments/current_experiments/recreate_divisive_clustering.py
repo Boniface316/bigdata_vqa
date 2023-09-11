@@ -5,6 +5,7 @@ from pathlib import Path
 import cudaq
 from loguru import logger
 
+
 from bigdatavqa.coreset import (
     Coreset,
     get_coreset_vector_df,
@@ -12,15 +13,18 @@ from bigdatavqa.coreset import (
 )
 from bigdatavqa.datautils import DataUtils
 from bigdatavqa.optimizer import get_optimizer
+
 from bigdatavqa.postexecution import (
     add_children_to_hierachial_clustering,
     get_best_bitstring,
 )
+
 from bigdatavqa.vqe_utils import (
     create_Hamiltonian_for_K2,
     get_Hamiltonian_variables,
     kernel_two_local,
 )
+
 
 parser = argparse.ArgumentParser(description="Divisive clustering circuit parameters")
 
