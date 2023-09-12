@@ -3,8 +3,7 @@ import warnings
 import cudaq
 import numpy as np
 import pandas as pd
-
-from divisiveclustering.coresetsUtils import Coreset, gen_coreset_graph
+from divisiveclustering.coresetsUtils import Coreset, coreset_to_graph
 from divisiveclustering.datautils import DataUtils
 from divisiveclustering.helpers import add_children_to_hc
 from divisiveclustering.quantumutils import get_probs_table
@@ -15,7 +14,7 @@ from divisiveclustering.vqe_utils import (
 )
 
 number_of_qubits = 20
-layer_count = 1
+circuit_depth = 1
 
 data_utils = DataUtils("data")
 
@@ -40,7 +39,7 @@ coreset_vectors, coreset_weights = coresets.get_best_coresets(
 coreset_vectors = np.array(coreset_vectors)
 coreset_weights = np.array(coreset_weights)
 
-coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(
+coreset_points, G, H, weight_matrix, weights = coreset_to_graph(
     coreset_vectors, coreset_weights, metric="dot"
 )
 
@@ -75,7 +74,7 @@ while single_clusters < len(index_vals):
         print(f"Qubits: {qubits}")
         hamiltonian = create_Hamiltonian_for_K2(G, number_of_qubits, weights)
 
-        parameter_count = 4 * layer_count * (qubits - 1)
+        parameter_count = 4 * circuit_depth * (qubits - 1)
 
         optimizer = cudaq.optimizers.COBYLA()
         optimizer.initial_parameters = np.random.uniform(
@@ -84,7 +83,7 @@ while single_clusters < len(index_vals):
         optimizer.max_iterations = max_iterations
 
         optimal_expectation, optimal_parameters = cudaq.vqe(
-            kernel=kernel_two_local(qubits, layer_count),
+            kernel=kernel_two_local(qubits, circuit_depth),
             spin_operator=hamiltonian[0],
             optimizer=optimizer,
             parameter_count=parameter_count,
@@ -92,7 +91,7 @@ while single_clusters < len(index_vals):
         )
 
         counts = cudaq.sample(
-            kernel_two_local(qubits, layer_count),
+            kernel_two_local(qubits, circuit_depth),
             optimal_parameters,
             shots_count=max_shots,
         )

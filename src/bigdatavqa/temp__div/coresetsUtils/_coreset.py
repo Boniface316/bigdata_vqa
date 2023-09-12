@@ -16,7 +16,6 @@ class Coreset:
         coreset_numbers: int,
         size_vec_list: int = 100,
     ):
-
         B = self.get_bestB(
             data_vectors=data_vectors,
             number_of_runs=number_of_runs,
@@ -33,7 +32,6 @@ class Coreset:
         return [coreset_vectors, coreset_weights]
 
     def get_bestB(self, data_vectors: np.ndarray, number_of_runs: int, k: int):
-
         bestB, bestB_cost = None, np.inf
 
         # pick B with least error from num_runs runs
@@ -59,14 +57,12 @@ class Coreset:
         return B
 
     def get_cost(self, data_vectors, B):
-
         cost = 0
         for x in data_vectors:
             cost += self.dist_to_B(x, B) ** 2
         return cost
 
     def dist_to_B(self, x, B, return_closest_index=False):
-
         min_dist = np.inf
         closest_index = -1
         for i, b in enumerate(B):
@@ -79,7 +75,6 @@ class Coreset:
         return min_dist
 
     def BFL16(self, P, B, m):
-
         num_points_in_clusters = {i: 0 for i in range(len(B))}
         sum_distance_to_closest_cluster = 0
         for p in P:
@@ -103,7 +98,6 @@ class Coreset:
         return [P[i] for i in chosen_indices], weights
 
     def get_best_coresets(self, data_vectors, coreset_vectors, coreset_weights):
-
         cost_coreset = [
             self.kmeans_cost(
                 data_vectors,
@@ -119,12 +113,11 @@ class Coreset:
         return best_coreset_vectors, best_coreset_weights
 
     def kmeans_cost(self, data_vectors, coreset_vectors, sample_weight=None):
-
         kmeans = KMeans(n_clusters=2).fit(coreset_vectors, sample_weight=sample_weight)
         return self.get_cost(data_vectors, kmeans.cluster_centers_)
 
 
-def gen_coreset_graph(
+def coreset_to_graph(
     coreset_vectors: np.ndarray,
     coreset_weights: np.ndarray,
     metric: str = "dot",
@@ -225,7 +218,6 @@ def gen_coreset_graph(
 
 
 def get_cv_cw(cv: np.ndarray, cw: np.ndarray, idx_vals: int, normalize=True):
-
     """
     Get the coreset vector and weights from index value of the hierarchy
 
@@ -250,7 +242,6 @@ def get_cv_cw(cv: np.ndarray, cw: np.ndarray, idx_vals: int, normalize=True):
 
 
 def normalize_np(cv: np.ndarray, centralize=False):
-
     """
         Normalize and centralize the data
 

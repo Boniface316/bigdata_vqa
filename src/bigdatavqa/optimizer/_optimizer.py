@@ -2,8 +2,8 @@ import cudaq
 import numpy as np
 
 
-def get_optimizer(max_iterations, layer_count, qubits):
-    parameter_count = 4 * layer_count * (qubits - 1)
+def get_optimizer(max_iterations, circuit_depth, qubits):
+    parameter_count = 4 * circuit_depth * (qubits - 1)
 
     optimizer = cudaq.optimizers.COBYLA()
     optimizer.initial_parameters = np.random.uniform(

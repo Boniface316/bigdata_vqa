@@ -1,35 +1,28 @@
-import cudaq
-import numpy as np
-import warnings
 import datetime
-import sys
 import os
 import pickle
-from typing import Dict, List
-from cudaq import spin
-import networkx as nx
-from typing import Optional
-import pandas as pd
-from scipy.stats import multivariate_normal
+import sys
+import warnings
+from typing import Dict, List, Optional
 
-from typing import List
-
+import cudaq
 import networkx as nx
 import numpy as np
 import pandas as pd
+from cudaq import spin
+from scipy.stats import multivariate_normal
 from sklearn.cluster import KMeans
 
 
-def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
+def kernel_two_local(number_of_qubits, circuit_depth) -> cudaq.Kernel:
     """QAOA ansatz for maxcut"""
     kernel, thetas = cudaq.make_kernel(list)
     qreg = kernel.qalloc(number_of_qubits)
 
     # Loop over the layers
     theta_position = 0
-    
-    for i in range(layer_count):
 
+    for i in range(circuit_depth):
         for j in range(number_of_qubits):
             kernel.rz(thetas[theta_position], qreg[j % number_of_qubits])
             kernel.rx(thetas[theta_position + 1], qreg[j % number_of_qubits])
@@ -60,7 +53,7 @@ def create_Hamiltonian_for_K2(qubits):
     for i, j in G.edges():
         weight = np.random.uniform(0, 1)
         H += weight * (spin.z(i) * spin.z(j))
-        
+
     return H[0]
 
 
@@ -68,11 +61,11 @@ warnings.filterwarnings("ignore")
 
 time_dict = {}
 simulator_options = [None, "custatevec", "custatevec_f32", "cuquantum_mgpu"]
-#simulator_options = ["cuquantum"]
+# simulator_options = ["cuquantum"]
 
 number_of_qubits = int(sys.argv[1])
-layer_count = 1
-parameter_count = 4 * layer_count * number_of_qubits
+circuit_depth = 1
+parameter_count = 4 * circuit_depth * number_of_qubits
 shots = int(sys.argv[2])
 
 H = create_Hamiltonian_for_K2(number_of_qubits)
@@ -90,7 +83,7 @@ for simulator in simulator_options:
     print(datetime.datetime.now())
     start_time = datetime.datetime.now()
     optimal_expectation, optimal_parameters = cudaq.vqe(
-        kernel=kernel_two_local(number_of_qubits, layer_count),
+        kernel=kernel_two_local(number_of_qubits, circuit_depth),
         spin_operator=H,
         optimizer=optimizer,
         parameter_count=parameter_count,

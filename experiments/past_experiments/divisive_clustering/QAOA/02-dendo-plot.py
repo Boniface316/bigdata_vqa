@@ -1,10 +1,6 @@
 import numpy as np
 import pandas as pd
-from matplotlib import pyplot as plt
-from matplotlib.patches import Rectangle
-from matplotlib.pyplot import figure
-
-from divisiveclustering.coresetsUtils import gen_coreset_graph
+from divisiveclustering.coresetsUtils import coreset_to_graph
 from divisiveclustering.datautils import DataUtils
 from divisiveclustering.helpers import (
     create_empty_dendo_df,
@@ -22,6 +18,9 @@ from divisiveclustering.plotsutils import (
     plot_clustered_dendogram,
     plot_dendogram,
 )
+from matplotlib import pyplot as plt
+from matplotlib.patches import Rectangle
+from matplotlib.pyplot import figure
 
 coreset_numbers = 5
 qubits = coreset_numbers
@@ -32,7 +31,7 @@ data_utils = DataUtils()
 
 cv, cw, data_vec = data_utils.get_files(coreset_numbers, centers)
 
-coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(cv, cw, metric="dot")
+coreset_points, G, H, weight_matrix, weights = coreset_to_graph(cv, cw, metric="dot")
 
 df = pd.DataFrame(cv, columns=list("XY"))
 

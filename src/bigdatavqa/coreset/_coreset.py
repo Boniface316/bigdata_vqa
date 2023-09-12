@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 
 import networkx as nx
 import numpy as np
@@ -45,6 +45,9 @@ class Coreset:
 
     def Algorithm1(self, data_vectors: np.ndarray, k: int):
         B = []
+        # check if data_vectors is a dataframe. If so, convert it to numpy array
+        if isinstance(data_vectors, pd.DataFrame):
+            data_vectors = data_vectors.to_numpy()
         B.append(data_vectors[np.random.choice(len(data_vectors))])
 
         for _ in range(k - 1):
@@ -78,17 +81,13 @@ class Coreset:
         num_points_in_clusters = {i: 0 for i in range(len(B))}
         sum_distance_to_closest_cluster = 0
         for p in P:
-            min_dist, closest_index = self.dist_to_B(
-                p, B, return_closest_index=True
-            )
+            min_dist, closest_index = self.dist_to_B(p, B, return_closest_index=True)
             num_points_in_clusters[closest_index] += 1
             sum_distance_to_closest_cluster += min_dist**2
 
         Prob = np.zeros(len(P))
         for i, p in enumerate(P):
-            min_dist, closest_index = self.dist_to_B(
-                p, B, return_closest_index=True
-            )
+            min_dist, closest_index = self.dist_to_B(p, B, return_closest_index=True)
             Prob[i] += min_dist**2 / (2 * sum_distance_to_closest_cluster)
             Prob[i] += 1 / (2 * len(B) * num_points_in_clusters[closest_index])
 
@@ -101,7 +100,41 @@ class Coreset:
 
         return [P[i] for i in chosen_indices], weights
 
-    def _get_best_coresets(
+    def get_best_coresets(
+        self,
+        data_vectors,
+        number_of_runs,
+        coreset_numbers,
+        size_vec_list=10,
+        use_kmeans_cost=True,
+        sample_size=5,
+    ):
+        if use_kmeans_cost:
+            coreset_vectors, coreset_weights = self.get_coresets(
+                data_vectors, number_of_runs, coreset_numbers, size_vec_list
+            )
+
+            coreset_vectors, coreset_weights = self.best_coreset_using_kmeans_cost(
+                data_vectors, coreset_vectors, coreset_weights
+            )
+        else:
+            B = self.get_bestB(
+                data_vectors=data_vectors,
+                number_of_runs=number_of_runs,
+                k=coreset_numbers,
+            )
+
+            coreset_vectors, coreset_weights = self.Algorithm2(
+                data_vectors, B, coreset_numbers, sample_size
+            )
+
+        return np.array(coreset_vectors), np.array(coreset_weights)
+
+    def kmeans_cost(self, data_vectors, coreset_vectors, sample_weight=None):
+        kmeans = KMeans(n_clusters=2).fit(coreset_vectors, sample_weight=sample_weight)
+        return self.get_cost(data_vectors, kmeans.cluster_centers_)
+
+    def best_coreset_using_kmeans_cost(
         self, data_vectors, coreset_vectors, coreset_weights
     ):
         cost_coreset = [
@@ -112,33 +145,52 @@ class Coreset:
             )
             for i in range(10)
         ]
+
         best_index = cost_coreset.index(np.min(cost_coreset))
-        best_coreset_vectors = coreset_vectors[best_index]
-        best_coreset_weights = coreset_weights[best_index]
+        return (coreset_vectors[best_index], coreset_weights[best_index])
 
-        return best_coreset_vectors, best_coreset_weights
+    def Algorithm2(self, data_vectors, B, k=3, sample_size=5):
+        alpha = 16 * (np.log2(k) + 2)
 
-    def get_best_coresets(
-        self, data_vectors, number_of_runs, coreset_numbers, size_vec_list=10
-    ):
-        coreset_vectors, coreset_weights = self.get_coresets(
-            data_vectors, number_of_runs, coreset_numbers, size_vec_list
+        B_i_totals = [0] * len(B)
+        B_i = [np.empty_like(data_vectors) for _ in range(len(B))]
+        for x in data_vectors:
+            _, closest_index = self.dist_to_B(x, B, return_closest_index=True)
+            B_i[closest_index][B_i_totals[closest_index]] = x
+            B_i_totals[closest_index] += 1
+
+        c_phi = sum([self.dist_to_B(x, B) ** 2 for x in data_vectors]) / len(
+            data_vectors
         )
 
-        coreset_vectors, coreset_weights = self._get_best_coresets(
-            data_vectors, coreset_vectors, coreset_weights
-        )
+        p = np.zeros(len(data_vectors))
 
-        return np.array(coreset_vectors), np.array(coreset_weights)
+        sum_dist = {i: 0 for i in range(len(B))}
+        for i, x in enumerate(data_vectors):
+            dist, closest_index = self.dist_to_B(x, B, return_closest_index=True)
+            sum_dist[closest_index] += dist**2
 
-    def kmeans_cost(self, data_vectors, coreset_vectors, sample_weight=None):
-        kmeans = KMeans(n_clusters=2).fit(
-            coreset_vectors, sample_weight=sample_weight
-        )
-        return self.get_cost(data_vectors, kmeans.cluster_centers_)
+        for i, x in enumerate(data_vectors):
+            p[i] = 2 * alpha * self.dist_to_B(x, B) ** 2 / c_phi
+
+            _, closest_index = self.dist_to_B(x, B, return_closest_index=True)
+            p[i] += (
+                4
+                * alpha
+                * sum_dist[closest_index]
+                / (B_i_totals[closest_index] * c_phi)
+            )
+
+            p[i] += 4 * len(data_vectors) / B_i_totals[closest_index]
+        p = p / sum(p)
+
+        chosen_indices = np.random.choice(len(data_vectors), size=sample_size, p=p)
+        weights = [1 / (sample_size * p[i]) for i in chosen_indices]
+
+        return [data_vectors[i] for i in chosen_indices], weights
 
 
-def gen_coreset_graph(
+def coreset_to_graph(
     coreset_vectors: np.ndarray,
     coreset_weights: np.ndarray,
     metric: str = "dot",
@@ -176,49 +228,16 @@ def gen_coreset_graph(
     coreset = [(w, v) for w, v in zip(coreset_weights, coreset_vectors)]
 
     if coreset is None:
-        # Generate a graph instance with sample coreset data
-        coreset = []
-        # generate 3 points around x=-1, y=-1
-        for _ in range(3):
-            # use a uniformly random weight
-            # weight = np.random.uniform(0.1,5.0,1)[0]
-            weight = 1
-            vector = np.array(
-                [
-                    np.random.normal(loc=-1, scale=0.5, size=1)[0],
-                    np.random.normal(loc=-1, scale=0.5, size=1)[0],
-                ]
-            )
-            new_point = (weight, vector)
-            coreset.append(new_point)
-
-        # generate 3 points around x=+1, y=1
-        for _ in range(2):
-            # use a uniformly random weight
-            # weight = np.random.uniform(0.1,5.0,1)[0]
-            weight = 1
-            vector = np.array(
-                [
-                    np.random.normal(loc=1, scale=0.5, size=1)[0],
-                    np.random.normal(loc=1, scale=0.5, size=1)[0],
-                ]
-            )
-            new_point = (weight, vector)
-            coreset.append(new_point)
+        coreset = generate_graph_instance(coreset)
 
     # Generate a networkx graph with correct edge weights
     n = len(coreset)
     G = nx.complete_graph(n)
-    H = []
     weights = []
-    weight_matrix = np.zeros(len(G.nodes) ** 2).reshape(len(G.nodes()), -1)
+
     for edge in G.edges():
-        pauli_str = ["I"] * n
-        # coreset points are labelled by their vertex index
         v_i = edge[0]
         v_j = edge[1]
-        pauli_str[v_i] = "Z"
-        pauli_str[v_j] = "Z"
         w_i = coreset[v_i][0]
         w_j = coreset[v_j][0]
         if metric == "dot":
@@ -228,14 +247,44 @@ def gen_coreset_graph(
         else:
             raise Exception("Unknown metric: {}".format(metric))
 
-        weight_val = w_i * w_j
-        weight_matrix[v_i, v_j] = weight_val
-        weight_matrix[v_j, v_i] = weight_val
         G[v_i][v_j]["weight"] = w_i * w_j * mval
         weights.append(w_i * w_j * mval)
-        H.append((w_i * w_j * mval, pauli_str))
 
-    return coreset, G, H, weight_matrix, weights
+    return G, weights
+
+
+def generate_graph_instance(coreset):
+    # Generate a graph instance with sample coreset data
+    coreset = []
+    # generate 3 points around x=-1, y=-1
+    for _ in range(3):
+        # use a uniformly random weight
+        # weight = np.random.uniform(0.1,5.0,1)[0]
+        weight = 1
+        vector = np.array(
+            [
+                np.random.normal(loc=-1, scale=0.5, size=1)[0],
+                np.random.normal(loc=-1, scale=0.5, size=1)[0],
+            ]
+        )
+        new_point = (weight, vector)
+        coreset.append(new_point)
+
+    # generate 3 points around x=+1, y=1
+    for _ in range(2):
+        # use a uniformly random weight
+        # weight = np.random.uniform(0.1,5.0,1)[0]
+        weight = 1
+        vector = np.array(
+            [
+                np.random.normal(loc=1, scale=0.5, size=1)[0],
+                np.random.normal(loc=1, scale=0.5, size=1)[0],
+            ]
+        )
+        new_point = (weight, vector)
+        coreset.append(new_point)
+
+    return coreset
 
 
 def get_cv_cw(cv: np.ndarray, cw: np.ndarray, idx_vals: int, normalize=True):
@@ -299,12 +348,8 @@ def get_coreset_vector_df(coreset_vectors: np.ndarray, index_iteration_counter):
 def get_coreset_vectors_to_evaluate(
     coreset_vector_df, hierarchial_clustering_sequence, index_iteration_counter
 ):
-    index_values_to_evaluate = hierarchial_clustering_sequence[
-        index_iteration_counter
-    ]
-    coreset_vectors_to_evaluate = coreset_vector_df.iloc[
-        index_values_to_evaluate
-    ]
+    index_values_to_evaluate = hierarchial_clustering_sequence[index_iteration_counter]
+    coreset_vectors_to_evaluate = coreset_vector_df.iloc[index_values_to_evaluate]
     return (
         coreset_vectors_to_evaluate.drop(columns=["Name"]),
         index_values_to_evaluate,

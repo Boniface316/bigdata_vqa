@@ -3,9 +3,8 @@ from typing import Dict
 import networkx as nx
 import numpy as np
 import pandas as pd
+from divisiveclustering.coresetsUtils import coreset_to_graph, get_cv_cw
 from sklearn.cluster import KMeans
-
-from divisiveclustering.coresetsUtils import gen_coreset_graph, get_cv_cw
 
 
 def create_clusters(
@@ -46,7 +45,6 @@ def create_clusters(
 
 
 def get_best_bitstring(qubits: int, cw: np.ndarray, cv: np.ndarray, idx_vals: int):
-
     """
     Finds the best bitstring out of all results
 
@@ -62,7 +60,7 @@ def get_best_bitstring(qubits: int, cw: np.ndarray, cv: np.ndarray, idx_vals: in
 
     cw, cv = get_cv_cw(cv, cw, idx_vals)
 
-    coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(
+    coreset_points, G, H, weight_matrix, weights = coreset_to_graph(
         cv, cw, metric="dot"
     )
 
@@ -78,7 +76,6 @@ def get_best_bitstring(qubits: int, cw: np.ndarray, cv: np.ndarray, idx_vals: in
 
 
 def create_bitstrings(qubits):
-
     """
     Using the number of qubits, it creates 2**qubits bitstrings
 
@@ -115,7 +112,6 @@ def brute_force_cost_2(bitstrings: list, G: nx.graph):
     """
     cost_val = {}
     for bitstring in bitstrings:
-
         c = 0
         for i, j in G.edges():
             ai = bitstring[i]

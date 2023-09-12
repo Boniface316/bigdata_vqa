@@ -1,8 +1,7 @@
 import cudaq
-from cudaq import spin
-
-import numpy as np
 import networkx as nx
+import numpy as np
+from cudaq import spin
 
 # Here we build up a kernel for QAOA with p layers, with each layer
 # containing the alternating set of unitaries corresponding to the problem
@@ -20,10 +19,11 @@ import networkx as nx
 # The problem Hamiltonian
 
 qubit_count: int = 25
-layer_count: int = 2
-parameter_count: int = 2 * layer_count
+circuit_depth: int = 2
+parameter_count: int = 2 * circuit_depth
 
 cudaq.set_qpu("cuquantum_mgpu")
+
 
 def create_hamiltonian(qubit_count):
     # create a complete graph
@@ -49,7 +49,7 @@ def kernel_qaoa() -> cudaq.Kernel:
     kernel.h(qreg)
 
     # Loop over the layers
-    for i in range(layer_count):
+    for i in range(circuit_depth):
         # Loop over the qubits
         # Problem unitary
         for j in range(qubit_count):
@@ -59,15 +59,16 @@ def kernel_qaoa() -> cudaq.Kernel:
 
         # Mixer unitary
         for j in range(qubit_count):
-            kernel.rx(2.0 * thetas[i + layer_count], qreg[j])
+            kernel.rx(2.0 * thetas[i + circuit_depth], qreg[j])
 
     return kernel
 
 
 # Specify the optimizer and its initial parameters.
 optimizer = cudaq.optimizers.COBYLA()
-optimizer.initial_parameters = np.random.uniform(-np.pi / 8.0, np.pi / 8.0,
-                                                 parameter_count)
+optimizer.initial_parameters = np.random.uniform(
+    -np.pi / 8.0, np.pi / 8.0, parameter_count
+)
 print("Initial parameters = ", optimizer.initial_parameters)
 
 # Pass the kernel, spin operator, and optimizer to `cudaq.vqe`.
@@ -75,7 +76,8 @@ optimal_expectation, optimal_parameters = cudaq.vqe(
     kernel=kernel_qaoa(),
     spin_operator=hamiltonian,
     optimizer=optimizer,
-    parameter_count=parameter_count)
+    parameter_count=parameter_count,
+)
 
 # Print the optimized value and its parameters
 print("Optimal value = ", optimal_expectation)

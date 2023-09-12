@@ -7,7 +7,7 @@ qubits = 3
 layers = 1
 
 
-def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
+def kernel_two_local(number_of_qubits, circuit_depth) -> cudaq.Kernel:
     """QAOA ansatz for maxcut"""
     kernel, thetas = cudaq.make_kernel(list)
     qreg = kernel.qalloc(number_of_qubits)
@@ -15,7 +15,7 @@ def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
     # Loop over the layers
     theta_position = 0
 
-    for i in range(layer_count):
+    for i in range(circuit_depth):
         for j in range(1, number_of_qubits):
             kernel.rz(thetas[theta_position], qreg[j % number_of_qubits])
             kernel.rx(thetas[theta_position + 1], qreg[j % number_of_qubits])
@@ -63,7 +63,7 @@ max_shots = 1000
 print(max_shots)
 
 optimal_expectation, optimal_parameters = cudaq.vqe(
-    # kernel=kernel_two_local(number_of_qubits, layer_count),
+    # kernel=kernel_two_local(number_of_qubits, circuit_depth),
     kernel=kernel,
     spin_operator=hamiltonian,
     optimizer=optimizer,

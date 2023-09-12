@@ -1,7 +1,6 @@
 import cudaq
-from cudaq import spin
-
 import numpy as np
+from cudaq import spin
 
 cudaq.set_qpu("custatevec_f32")
 
@@ -19,15 +18,17 @@ cudaq.set_qpu("custatevec_f32")
 # The maxcut for this problem is 0101 or 1010.
 
 # The problem Hamiltonian
-hamiltonian = 0.5 * spin.z(0) * spin.z(1) + 0.5 * spin.z(1) * spin.z(2) \
-       + 0.5 * spin.z(0) * spin.z(3) + 0.5 * spin.z(2) * spin.z(3)
+hamiltonian = (
+    0.5 * spin.z(0) * spin.z(1)
+    + 0.5 * spin.z(1) * spin.z(2)
+    + 0.5 * spin.z(0) * spin.z(3)
+    + 0.5 * spin.z(2) * spin.z(3)
+)
 
 # Problem parameters.
 qubit_count: int = 10
-layer_count: int = 2
-parameter_count: int = 2 * layer_count
-
-
+circuit_depth: int = 2
+parameter_count: int = 2 * circuit_depth
 
 
 def kernel_qaoa() -> cudaq.Kernel:
@@ -39,7 +40,7 @@ def kernel_qaoa() -> cudaq.Kernel:
     kernel.h(qreg)
 
     # Loop over the layers
-    for i in range(layer_count):
+    for i in range(circuit_depth):
         # Loop over the qubits
         # Problem unitary
         for j in range(qubit_count):
@@ -49,15 +50,16 @@ def kernel_qaoa() -> cudaq.Kernel:
 
         # Mixer unitary
         for j in range(qubit_count):
-            kernel.rx(2.0 * thetas[i + layer_count], qreg[j])
+            kernel.rx(2.0 * thetas[i + circuit_depth], qreg[j])
 
     return kernel
 
 
 # Specify the optimizer and its initial parameters.
 optimizer = cudaq.optimizers.COBYLA()
-optimizer.initial_parameters = np.random.uniform(-np.pi / 8.0, np.pi / 8.0,
-                                                 parameter_count)
+optimizer.initial_parameters = np.random.uniform(
+    -np.pi / 8.0, np.pi / 8.0, parameter_count
+)
 print("Initial parameters = ", optimizer.initial_parameters)
 
 # Pass the kernel, spin operator, and optimizer to `cudaq.vqe`.
@@ -65,7 +67,8 @@ optimal_expectation, optimal_parameters = cudaq.vqe(
     kernel=kernel_qaoa(),
     spin_operator=hamiltonian,
     optimizer=optimizer,
-    parameter_count=parameter_count)
+    parameter_count=parameter_count,
+)
 
 # Print the optimized value and its parameters
 print("Optimal value = ", optimal_expectation)

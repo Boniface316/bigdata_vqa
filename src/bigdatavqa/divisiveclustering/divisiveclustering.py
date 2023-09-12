@@ -12,7 +12,7 @@ from ..vqe_utils import (
 
 
 def create_hierarchial_cluster(
-    coreset_vectors, coreset_weights, max_shots, max_iterations, layer_count
+    coreset_vectors, coreset_weights, max_shots, max_iterations, circuit_depth
 ):
     index_iteration_counter = 0
     single_clusters = 0
@@ -32,10 +32,9 @@ def create_hierarchial_cluster(
         else:
             (
                 Hamiltonian,
-                qubits,
                 coreset_vectors_df_to_evaluate,
                 G,
-            ) = get_hamiltonian_and_qubits_coreset_vector_G(
+            ) = get_hamiltonian_coreset_vector_G(
                 coreset_vectors,
                 coreset_weights,
                 coreset_vector_df,
@@ -43,16 +42,18 @@ def create_hierarchial_cluster(
                 index_iteration_counter,
             )
 
+            qubits = len(G.nodes)
+
             logger.info(
                 f"index iteration counter : {index_iteration_counter}, QUBITS :{qubits}",
             )
 
             optimizer, parameter_count = get_optimizer(
-                max_iterations, layer_count, qubits
+                max_iterations, circuit_depth, qubits
             )
 
             optimal_expectation, optimal_parameters = cudaq.vqe(
-                kernel=kernel_two_local(qubits, layer_count),
+                kernel=kernel_two_local(qubits, circuit_depth),
                 spin_operator=Hamiltonian[0],
                 optimizer=optimizer,
                 parameter_count=parameter_count,
@@ -60,7 +61,7 @@ def create_hierarchial_cluster(
             )
 
             counts = cudaq.sample(
-                kernel_two_local(qubits, layer_count),
+                kernel_two_local(qubits, circuit_depth),
                 optimal_parameters,
                 shots_count=max_shots,
             )
@@ -91,7 +92,7 @@ def get_hierarchial_clustering_sequence(coreset_weights):
     return index_values, hioerarchial_clustering_sequence
 
 
-def get_hamiltonian_and_qubits_coreset_vector_G(
+def get_hamiltonian_coreset_vector_G(
     coreset_vectors,
     coreset_weights,
     coreset_vector_df,
@@ -117,7 +118,6 @@ def get_hamiltonian_and_qubits_coreset_vector_G(
 
     return (
         create_Hamiltonian_for_K2(G, qubits, weights, add_identity=add_identity),
-        qubits,
         coreset_vectors_df_to_evaluate,
         G,
     )

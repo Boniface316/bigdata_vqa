@@ -4,11 +4,10 @@ import re
 
 import networkx as nx
 import pandas as pd
-from sklearn.cluster import KMeans
-
-from divisiveclustering.coresetsUtils import gen_coreset_graph
+from divisiveclustering.coresetsUtils import coreset_to_graph
 from divisiveclustering.datautils import DataUtils
 from divisiveclustering.quantumutils import QAOA_divisive_clustering
+from sklearn.cluster import KMeans
 
 coreset_numbers = 5
 qubits = coreset_numbers
@@ -18,7 +17,7 @@ depth = 1
 data_util = DataUtils()
 cv, cw, data_vec = data_util.get_files(coreset_numbers, centers)
 
-coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(cv, cw, metric="dot")
+coreset_points, G, H, weight_matrix, weights = coreset_to_graph(cv, cw, metric="dot")
 
 df = pd.DataFrame(cv, columns=list("XY"))
 

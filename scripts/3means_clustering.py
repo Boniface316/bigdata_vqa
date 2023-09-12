@@ -1,16 +1,19 @@
 import argparse
-import warnings
+import os as os
 
+import pandas as pd
 from loguru import logger
 
 from bigdatavqa.coreset import Coreset
 from bigdatavqa.datautils import DataUtils
-from bigdatavqa.divisiveclustering import create_hierarchial_cluster
+
+# from meansClustering.vqe3means import Vqe_3_Means
+
 
 parser = argparse.ArgumentParser(description="Divisive clustering circuit parameters")
 
 parser.add_argument("--qubits", type=int, required=True, help="Number of qubits")
-parser.add_argument("--depth", type=int, required=True, help="Circuit depth")
+parser.add_argument("--depth", type=int, required=True, help="Number of layers")
 parser.add_argument("--shots", type=int, required=True, help="Number of shots")
 parser.add_argument(
     "--iterations", type=int, required=True, help="Number of iterations"
@@ -20,7 +23,7 @@ args = parser.parse_args()
 
 
 logger.add(
-    ".logs/divisive_clustering.log",
+    ".logs/3means_clustering.log",
     rotation="10 MB",
     compression="zip",
     level="INFO",
@@ -41,12 +44,6 @@ max_iterations = 100
 number_of_runs = 100
 size_vec_list = 10
 
-logger.info(f"Number of qubits: {number_of_qubits}")
-logger.info(f"Number of layers: {circuit_depth}")
-logger.info(f"Number of shots: {max_shots}")
-logger.info(f"Number of iterations: {max_iterations}")
-logger.info(f"Data location: {data_location}")
-
 
 def get_raw_data(data_location):
     data_utils = DataUtils(data_location)
@@ -59,16 +56,9 @@ def get_raw_data(data_location):
     return raw_data
 
 
-def main(
-    coreset_vectors,
-    coreset_weights,
-    circuit_depth,
-    max_shots,
-    max_iterations,
-):
-    create_hierarchial_cluster(
-        coreset_vectors, coreset_weights, circuit_depth, max_shots, max_iterations
-    )
+# Means3Vqe = Vqe_3_Means(data, sample_size=5)
+# results = Means3Vqe.fit_coreset([1, 2])
+# results
 
 
 if __name__ == "__main__":
@@ -78,9 +68,5 @@ if __name__ == "__main__":
         data_vectors=raw_data,
         number_of_runs=number_of_runs,
         coreset_numbers=number_of_qubits,
-        size_vec_list=size_vec_list,
+        use_kmeans_cost=False,
     )
-
-    main(coreset_vectors, coreset_weights, circuit_depth, max_shots, max_iterations)
-
-    logger.info("Completed!")

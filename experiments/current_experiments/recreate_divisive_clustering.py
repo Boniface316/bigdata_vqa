@@ -5,7 +5,6 @@ from pathlib import Path
 import cudaq
 from loguru import logger
 
-
 from bigdatavqa.coreset import (
     Coreset,
     get_coreset_vector_df,
@@ -13,18 +12,15 @@ from bigdatavqa.coreset import (
 )
 from bigdatavqa.datautils import DataUtils
 from bigdatavqa.optimizer import get_optimizer
-
 from bigdatavqa.postexecution import (
     add_children_to_hierachial_clustering,
     get_best_bitstring,
 )
-
 from bigdatavqa.vqe_utils import (
     create_Hamiltonian_for_K2,
     get_Hamiltonian_variables,
     kernel_two_local,
 )
-
 
 parser = argparse.ArgumentParser(description="Divisive clustering circuit parameters")
 
@@ -48,7 +44,7 @@ logger.add(
 
 
 number_of_qubits = args.qubits
-layer_count = args.layers
+circuit_depth = args.layers
 max_shots = args.shots
 max_iterations = args.iterations
 if args.data_location is None:
@@ -61,7 +57,7 @@ number_of_runs = 100
 size_vec_list = 10
 
 logger.info(f"Number of qubits: {number_of_qubits}")
-logger.info(f"Number of layers: {layer_count}")
+logger.info(f"Number of layers: {circuit_depth}")
 logger.info(f"Number of shots: {max_shots}")
 logger.info(f"Number of iterations: {max_iterations}")
 logger.info(f"Data location: {data_location}")
@@ -92,7 +88,7 @@ def get_coreset_vectors(raw_data, number_of_runs, coreset_numbers, size_vec_list
 def main(
     data_location,
     number_of_qubits,
-    layer_count,
+    circuit_depth,
     max_shots,
     max_iterations,
     number_of_runs,
@@ -141,11 +137,11 @@ def main(
             )
 
             optimizer, parameter_count = get_optimizer(
-                max_iterations, layer_count, qubits
+                max_iterations, circuit_depth, qubits
             )
 
             optimal_expectation, optimal_parameters = cudaq.vqe(
-                kernel=kernel_two_local(qubits, layer_count),
+                kernel=kernel_two_local(qubits, circuit_depth),
                 spin_operator=Hamiltonian[0],
                 optimizer=optimizer,
                 parameter_count=parameter_count,
@@ -153,7 +149,7 @@ def main(
             )
 
             counts = cudaq.sample(
-                kernel_two_local(qubits, layer_count),
+                kernel_two_local(qubits, circuit_depth),
                 optimal_parameters,
                 shots_count=max_shots,
             )
@@ -189,7 +185,7 @@ if __name__ == "__main__":
     main(
         data_location,
         number_of_qubits,
-        layer_count,
+        circuit_depth,
         max_shots,
         max_iterations,
         number_of_runs,

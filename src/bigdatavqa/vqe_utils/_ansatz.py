@@ -6,10 +6,10 @@ import numpy as np
 import pandas as pd
 from cudaq import spin
 
-from ..coreset._coreset import gen_coreset_graph, get_cv_cw
+from ..coreset._coreset import coreset_to_graph, get_cv_cw
 
 
-def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
+def kernel_two_local(number_of_qubits, circuit_depth) -> cudaq.Kernel:
     """QAOA ansatz for maxcut"""
     kernel, thetas = cudaq.make_kernel(list)
     qreg = kernel.qalloc(number_of_qubits)
@@ -17,7 +17,7 @@ def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
     # Loop over the layers
     theta_position = 0
 
-    for i in range(layer_count):
+    for i in range(circuit_depth):
         for j in range(1, number_of_qubits):
             kernel.rz(thetas[theta_position], qreg[j % number_of_qubits])
             kernel.rx(thetas[theta_position + 1], qreg[j % number_of_qubits])
@@ -52,9 +52,7 @@ def get_Hamiltonian_variables(
             coreset_vectors, coreset_weights, index_vals_temp
         )
 
-    coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(
-        coreset_vectors, coreset_weights, metric="dot"
-    )
+    G, weights = coreset_to_graph(coreset_vectors, coreset_weights, metric="dot")
     qubits = len(G.nodes)
 
     return G, weights, qubits

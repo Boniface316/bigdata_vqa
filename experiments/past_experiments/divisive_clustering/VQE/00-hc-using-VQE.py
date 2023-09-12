@@ -4,9 +4,8 @@ import numpy as np
 import pandas as pd
 import pennylane as qml
 import pytz
-
 from divisiveclustering.bruteforceutils import brute_force_cost_2
-from divisiveclustering.coresetsUtils import gen_coreset_graph
+from divisiveclustering.coresetsUtils import coreset_to_graph
 from divisiveclustering.datautils import DataUtils
 from divisiveclustering.helpers import add_children_to_hc
 from divisiveclustering.quantumutils import (
@@ -40,7 +39,7 @@ coreset_vectors, coreset_weights, data_vec = data_utils.get_files(
     coreset_numbers, centers
 )
 
-coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(
+coreset_points, G, H, weight_matrix, weights = coreset_to_graph(
     coreset_vectors, coreset_weights, metric="dot"
 )
 
@@ -89,7 +88,6 @@ while single_clusters < len(index_vals):
             max_iterations = 100 * qubits
 
         for n in range(max_iterations):
-
             params = opt.step(cost_fn, params, depth=depth, dev=dev, G=G)
             if n % 100 == 0:
                 print(n)

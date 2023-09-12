@@ -3,9 +3,8 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 import pennylane as qml
-
 from divisiveclustering.bruteforceutils import brute_force_cost_2
-from divisiveclustering.coresetsUtils import gen_coreset_graph, get_cv_cw
+from divisiveclustering.coresetsUtils import coreset_to_graph, get_cv_cw
 from divisiveclustering.datautils import DataUtils
 from divisiveclustering.helpers import add_children_to_hc
 
@@ -22,7 +21,6 @@ def QAOA_divisive_clustering(
     step_size: int = 0.01,
     data_folder: int = None,
 ):
-
     """
     Performs the entire divisive clustering using QAOA
 
@@ -63,7 +61,6 @@ def QAOA_divisive_clustering(
             single_clusters += 1
             i += 1
         else:
-
             index_vals_temp = hc[i]
             new_df = df.iloc[index_vals_temp]
             new_df = new_df.drop(columns=["Name"])
@@ -204,7 +201,7 @@ def get_Hamil_variables(
        Graph, weights and qubits
     """
     cw, cv = get_cv_cw(coreset_vectors, coreset_weights, index_vals_temp)
-    coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(
+    coreset_points, G, H, weight_matrix, weights = coreset_to_graph(
         cv, cw, metric="dot"
     )
     qubits = len(new_df)
@@ -231,7 +228,7 @@ def create_Hamiltonian_for_K2(G, weights: np.ndarray, nodes, add_identity=False)
         H = 0 * qml.Identity(0)
 
     for i, j in G.edges():
-        weight = G[i][j]["weight"]#[0]
+        weight = G[i][j]["weight"]  # [0]
         H += weight * (qml.PauliZ(i) @ qml.PauliZ(j))
 
     return qml.Hamiltonian(H.coeffs, H.ops)
@@ -329,7 +326,6 @@ def optimize_params_qaoa(
 
 
 def get_probs(params, depth, dev, qubits, G, ansatz="VQE"):
-
     """_summary_
 
     Args:
@@ -429,7 +425,6 @@ def find_complementary_bitstring(solution_bitstring: str):
 
 
 def get_other_solutions(probs_filtered_dict_full: Dict):
-
     """
     Find if there are other solutions
 
@@ -471,7 +466,6 @@ def vqe_ansatz(params: np.ndarray, wires, depth: int, G, dev):
         theta_vals = params_p[p]
 
         for wire in range(wires):
-
             qml.RY(theta_vals[0][wire], wires=wire)
             qml.RZ(theta_vals[1][wire], wires=wire)
 
@@ -481,5 +475,3 @@ def vqe_ansatz(params: np.ndarray, wires, depth: int, G, dev):
         for wire in range(wires):
             qml.RY(theta_vals[2][wire], wires=wire)
             qml.RZ(theta_vals[3][wire], wires=wire)
-
-

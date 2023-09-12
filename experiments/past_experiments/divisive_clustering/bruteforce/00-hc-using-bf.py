@@ -1,7 +1,6 @@
 import pandas as pd
-
 from divisiveclustering.bruteforceutils import create_clusters
-from divisiveclustering.coresetsUtils import gen_coreset_graph
+from divisiveclustering.coresetsUtils import coreset_to_graph
 from divisiveclustering.datautils import DataUtils
 from divisiveclustering.helpers import add_children_to_hc, get_centroid_dist_df
 
@@ -19,7 +18,7 @@ data_utils = DataUtils("/Users/yogi/libraries/Kmeans_NISQ")
 
 cv, cw, data_vec = data_utils.get_files(coreset_numbers, 4)
 print(cw)
-coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(
+coreset_points, G, H, weight_matrix, weights = coreset_to_graph(
     coreset_vectors=cv, coreset_weights=cw
 )
 
@@ -28,7 +27,6 @@ df = pd.DataFrame(cv, columns=list("XY"))
 df["Name"] = [chr(i + 65) for i in df.index]
 
 while single_clusters < len(index_vals):
-
     if i < 1:
         hc = []
         hc.append(index_vals)

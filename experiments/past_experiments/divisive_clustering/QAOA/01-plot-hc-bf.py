@@ -1,6 +1,5 @@
 import pandas as pd
-
-from divisiveclustering.coresetsUtils import gen_coreset_graph
+from divisiveclustering.coresetsUtils import coreset_to_graph
 from divisiveclustering.datautils import DataUtils
 from divisiveclustering.plotsutils import plot_all_splits
 
@@ -17,7 +16,7 @@ save_plot = True
 data_utils = DataUtils("/Users/yogi/libraries/Kmeans_NISQ")
 
 cv, cw, data_vec = data_utils.get_files(coreset_numbers, centers)
-coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(cv, cw, metric="dot")
+coreset_points, G, H, weight_matrix, weights = coreset_to_graph(cv, cw, metric="dot")
 df = pd.DataFrame(cv, columns=list("XY"))
 
 

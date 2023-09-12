@@ -1,22 +1,16 @@
-import cudaq
-import numpy as np
-import warnings
 import datetime
-import sys
 import os
 import pickle
-from typing import Dict, List
-from cudaq import spin
-import networkx as nx
-from typing import Optional
-import pandas as pd
-from scipy.stats import multivariate_normal
+import sys
+import warnings
+from typing import Dict, List, Optional
 
-from typing import List
-
+import cudaq
 import networkx as nx
 import numpy as np
 import pandas as pd
+from cudaq import spin
+from scipy.stats import multivariate_normal
 from sklearn.cluster import KMeans
 
 
@@ -30,7 +24,6 @@ class Coreset:
         coreset_numbers: int,
         size_vec_list: int = 100,
     ):
-
         B = self.get_bestB(
             data_vectors=data_vectors,
             number_of_runs=number_of_runs,
@@ -47,7 +40,6 @@ class Coreset:
         return [coreset_vectors, coreset_weights]
 
     def get_bestB(self, data_vectors: np.ndarray, number_of_runs: int, k: int):
-
         bestB, bestB_cost = None, np.inf
 
         # pick B with least error from num_runs runs
@@ -73,14 +65,12 @@ class Coreset:
         return B
 
     def get_cost(self, data_vectors, B):
-
         cost = 0
         for x in data_vectors:
             cost += self.dist_to_B(x, B) ** 2
         return cost
 
     def dist_to_B(self, x, B, return_closest_index=False):
-
         min_dist = np.inf
         closest_index = -1
         for i, b in enumerate(B):
@@ -93,7 +83,6 @@ class Coreset:
         return min_dist
 
     def BFL16(self, P, B, m):
-
         num_points_in_clusters = {i: 0 for i in range(len(B))}
         sum_distance_to_closest_cluster = 0
         for p in P:
@@ -117,7 +106,6 @@ class Coreset:
         return [P[i] for i in chosen_indices], weights
 
     def get_best_coresets(self, data_vectors, coreset_vectors, coreset_weights):
-
         cost_coreset = [
             self.kmeans_cost(
                 data_vectors,
@@ -133,12 +121,11 @@ class Coreset:
         return best_coreset_vectors, best_coreset_weights
 
     def kmeans_cost(self, data_vectors, coreset_vectors, sample_weight=None):
-
         kmeans = KMeans(n_clusters=2).fit(coreset_vectors, sample_weight=sample_weight)
         return self.get_cost(data_vectors, kmeans.cluster_centers_)
 
 
-def gen_coreset_graph(
+def coreset_to_graph(
     coreset_vectors: np.ndarray,
     coreset_weights: np.ndarray,
     metric: str = "dot",
@@ -239,7 +226,6 @@ def gen_coreset_graph(
 
 
 def get_cv_cw(cv: np.ndarray, cw: np.ndarray, idx_vals: int, normalize=True):
-
     """
     Get the coreset vector and weights from index value of the hierarchy
 
@@ -264,7 +250,6 @@ def get_cv_cw(cv: np.ndarray, cw: np.ndarray, idx_vals: int, normalize=True):
 
 
 def normalize_np(cv: np.ndarray, centralize=False):
-
     """
         Normalize and centralize the data
 
@@ -288,16 +273,15 @@ def normalize_np(cv: np.ndarray, centralize=False):
     return cv_norm
 
 
-def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
+def kernel_two_local(number_of_qubits, circuit_depth) -> cudaq.Kernel:
     """QAOA ansatz for maxcut"""
     kernel, thetas = cudaq.make_kernel(list)
     qreg = kernel.qalloc(number_of_qubits)
 
     # Loop over the layers
     theta_position = 0
-    
-    for i in range(layer_count):
 
+    for i in range(circuit_depth):
         for j in range(number_of_qubits):
             kernel.rz(thetas[theta_position], qreg[j % number_of_qubits])
             kernel.rx(thetas[theta_position + 1], qreg[j % number_of_qubits])
@@ -307,6 +291,7 @@ def kernel_two_local(number_of_qubits, layer_count) -> cudaq.Kernel:
             theta_position += 4
 
     return kernel
+
 
 def get_Hamil_variables(
     coreset_vectors: np.ndarray,
@@ -327,16 +312,21 @@ def get_Hamil_variables(
        Graph, weights and qubits
     """
     if new_df is not None and index_vals_temp is not None:
-        coreset_weights, coreset_vectors = get_cv_cw(coreset_vectors, coreset_weights, index_vals_temp)
-    
-    coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(
+        coreset_weights, coreset_vectors = get_cv_cw(
+            coreset_vectors, coreset_weights, index_vals_temp
+        )
+
+    coreset_points, G, H, weight_matrix, weights = coreset_to_graph(
         coreset_vectors, coreset_weights, metric="dot"
     )
     qubits = len(G.nodes)
 
     return G, weights, qubits
 
-def create_Hamiltonian_for_K2(G, qubits, weights: np.ndarray = None,add_identity=False):
+
+def create_Hamiltonian_for_K2(
+    G, qubits, weights: np.ndarray = None, add_identity=False
+):
     """
     Generate Hamiltonian for k=2
 
@@ -352,10 +342,11 @@ def create_Hamiltonian_for_K2(G, qubits, weights: np.ndarray = None,add_identity
     H = 0
 
     for i, j in G.edges():
-        weight = G[i][j]["weight"]#[0]
+        weight = G[i][j]["weight"]  # [0]
         H += weight * (spin.z(i) * spin.z(j))
-        
+
     return H[0]
+
 
 class DataUtils:
     def __init__(self, data_folder: str = None, random_seed: int = 1000):
@@ -373,9 +364,8 @@ class DataUtils:
         save_file: bool = True,
         n_features: int = 2,
         number_of_samples_from_distribution: int = 500,
-        file_name : str = "data.pickle",
-        mean_array: np.ndarray = np.array([[0,0], [7,1]])
-
+        file_name: str = "data.pickle",
+        mean_array: np.ndarray = np.array([[0, 0], [7, 1]]),
     ):
         """
         Create a new data set
@@ -391,49 +381,51 @@ class DataUtils:
             created data vector
         """
 
-        random_seed=self.random_seed
-    
-        X = np.zeros((n_samples,n_features))
-    
+        random_seed = self.random_seed
+
+        X = np.zeros((n_samples, n_features))
+
         # Iterating over different covariance values
         for idx, val in enumerate(covariance_values):
-            
             covariance_matrix = np.array([[1, val], [val, 1]])
-            
-             # Generating a Gaussian bivariate distribution
-             # with given mean and covariance matrix
-            distr = multivariate_normal(cov = covariance_matrix, mean = mean_array[idx], seed = random_seed)
-            
+
+            # Generating a Gaussian bivariate distribution
+            # with given mean and covariance matrix
+            distr = multivariate_normal(
+                cov=covariance_matrix, mean=mean_array[idx], seed=random_seed
+            )
+
             # Generating 500 samples out of the
             # distribution
-            data = distr.rvs(size = number_of_samples_from_distribution)
-            
-            X[number_of_samples_from_distribution*idx:number_of_samples_from_distribution*(idx+1)][:] = data
+            data = distr.rvs(size=number_of_samples_from_distribution)
+
+            X[
+                number_of_samples_from_distribution
+                * idx : number_of_samples_from_distribution
+                * (idx + 1)
+            ][:] = data
 
         if save_file:
             # check if the data folder exists, if not create it
             if not os.path.exists(self.data_folder + "/data/"):
                 os.makedirs(self.data_folder + "/data/")
             # save X as a pickle file in the data folder
-            with open(f"{self.data_folder}/{file_name}", 'wb') as handle:
+            with open(f"{self.data_folder}/{file_name}", "wb") as handle:
                 pickle.dump(X, handle)
                 print(f"Data saved in {self.data_folder}/{file_name}")
-            
+
         return X
-
-
-
 
 
 warnings.filterwarnings("ignore")
 
 time_dict = {}
 simulator_options = [None, "custatevec", "custatevec_f32", "cuquantum_mgpu"]
-#simulator_options = ["cuquantum"]
+# simulator_options = ["cuquantum"]
 
 number_of_qubits = int(sys.argv[1])
-layer_count = 1
-parameter_count = 4 * layer_count * number_of_qubits
+circuit_depth = 1
+parameter_count = 4 * circuit_depth * number_of_qubits
 shots = int(sys.argv[2])
 
 
@@ -457,7 +449,7 @@ best_coreset_vectors, best_coreset_weights = coresets.get_best_coresets(
 normalized_cv = normalize_np(best_coreset_vectors, centralize=True)
 normalized_cw = normalize_np(best_coreset_weights, centralize=False)
 
-coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(
+coreset_points, G, H, weight_matrix, weights = coreset_to_graph(
     normalized_cv, normalized_cw, metric="dot"
 )
 
@@ -476,7 +468,7 @@ for simulator in simulator_options:
     print(datetime.datetime.now())
     start_time = datetime.datetime.now()
     optimal_expectation, optimal_parameters = cudaq.vqe(
-        kernel=kernel_two_local(number_of_qubits, layer_count),
+        kernel=kernel_two_local(number_of_qubits, circuit_depth),
         spin_operator=H,
         optimizer=optimizer,
         parameter_count=parameter_count,

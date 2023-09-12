@@ -1,9 +1,8 @@
 import pandas as pd
-from scipy.spatial import Voronoi
-
-from divisiveclustering.coresetsUtils import gen_coreset_graph
+from divisiveclustering.coresetsUtils import coreset_to_graph
 from divisiveclustering.datautils import DataUtils
 from divisiveclustering.plotsutils import plot_voironi, voronoi_finite_polygons_2d
+from scipy.spatial import Voronoi
 
 coreset_numbers = 5
 centers = 4

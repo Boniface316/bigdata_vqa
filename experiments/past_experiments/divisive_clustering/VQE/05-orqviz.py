@@ -5,17 +5,16 @@ import numpy as np
 import pandas as pd
 import pennylane as qml
 import pytz
-from orqviz.geometric import get_random_normal_vector, get_random_orthonormal_vector
-from orqviz.pca import get_pca, perform_2D_pca_scan
-from orqviz.scans import perform_1D_interpolation, perform_2D_scan
-from orqviz.utils import save_viz_object
-
-from divisiveclustering.coresetsUtils import gen_coreset_graph
+from divisiveclustering.coresetsUtils import coreset_to_graph
 from divisiveclustering.datautils import DataUtils
 from divisiveclustering.quantumutils import (
     create_Hamiltonian_for_K2,
     get_Hamil_variables,
 )
+from orqviz.geometric import get_random_normal_vector, get_random_orthonormal_vector
+from orqviz.pca import get_pca, perform_2D_pca_scan
+from orqviz.scans import perform_1D_interpolation, perform_2D_scan
+from orqviz.utils import save_viz_object
 
 st = datetime.datetime.now()
 est_tz = pytz.timezone("US/Eastern")
@@ -37,7 +36,6 @@ data_utils = DataUtils()
 
 
 def vqe_ansatz(params, **kwarg):
-
     wires = len(dev.wires)
 
     params_p = params.reshape(depth, 4, -1)
@@ -46,7 +44,6 @@ def vqe_ansatz(params, **kwarg):
         theta_vals = params_p[p]
 
         for wire in range(wires):
-
             qml.RY(theta_vals[0][wire], wires=wire)
             qml.RZ(theta_vals[1][wire], wires=wire)
 
@@ -61,7 +58,7 @@ def vqe_ansatz(params, **kwarg):
 coreset_vectors, coreset_weights, data_vec = data_utils.get_files(
     coreset_numbers, centers
 )
-coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(
+coreset_points, G, H, weight_matrix, weights = coreset_to_graph(
     coreset_vectors, coreset_weights, metric="dot"
 )
 

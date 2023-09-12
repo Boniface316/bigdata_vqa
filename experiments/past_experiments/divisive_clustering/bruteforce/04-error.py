@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
-
 from divisiveclustering.bruteforceutils import brute_force_cost_2
-from divisiveclustering.coresetsUtils import gen_coreset_graph
+from divisiveclustering.coresetsUtils import coreset_to_graph
 from divisiveclustering.datautils import DataUtils
 from divisiveclustering.helpers import find_children, np_to_bitstring
 from divisiveclustering.quantumutils import get_Hamil_variables
@@ -16,7 +15,7 @@ data_utils = DataUtils()
 
 coreset_vectors, coreset_weights, data_vec = data_utils.get_files(coresets, centers)
 
-coreset_points, G, H, weight_matrix, weights = gen_coreset_graph(
+coreset_points, G, H, weight_matrix, weights = coreset_to_graph(
     coreset_weights, coreset_vectors, metric="dot"
 )
 
@@ -27,7 +26,6 @@ hc = data_utils.load_object(type, coresets, centers, depth, "hc")
 cost_list = []
 
 for parent_posn in range(len(hc)):
-
     children_lst = find_children(hc, parent_posn)
 
     if len(children_lst) == 0:

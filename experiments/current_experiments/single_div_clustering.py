@@ -1,6 +1,7 @@
 import warnings
 
 import cudaq
+
 from bigdatavqa.coreset import (
     Coreset,
     get_coreset_vector_df,
@@ -16,7 +17,7 @@ from bigdatavqa.vqe_utils import (
 )
 
 number_of_qubits = 4
-layer_count = 1
+circuit_depth = 1
 
 index_iteration_counter = 0
 single_clusters = 0
@@ -41,9 +42,7 @@ coreset_vectors, coreset_weights = coreset.get_best_coresets(
     size_vec_list=10,
 )
 
-coreset_vector_df = get_coreset_vector_df(
-    coreset_vectors, index_iteration_counter
-)
+coreset_vector_df = get_coreset_vector_df(coreset_vectors, index_iteration_counter)
 
 index_values = [i for i in range(len(coreset_weights))]
 hierarchial_clustering_sequence = [index_values]
@@ -65,10 +64,10 @@ G, weights, qubits = get_Hamiltonian_variables(
 
 Hamiltonian = create_Hamiltonian_for_K2(G, qubits, weights, add_identity=False)
 
-optimizer, parameter_count = get_optimizer(max_iterations, layer_count, qubits)
+optimizer, parameter_count = get_optimizer(max_iterations, circuit_depth, qubits)
 
 optimal_expectation, optimal_parameters = cudaq.vqe(
-    kernel=kernel_two_local(qubits, layer_count),
+    kernel=kernel_two_local(qubits, circuit_depth),
     spin_operator=Hamiltonian[0],
     optimizer=optimizer,
     parameter_count=parameter_count,
@@ -76,7 +75,7 @@ optimal_expectation, optimal_parameters = cudaq.vqe(
 )
 
 counts = cudaq.sample(
-    kernel_two_local(qubits, layer_count),
+    kernel_two_local(qubits, circuit_depth),
     optimal_parameters,
     shots_count=max_shots,
 )

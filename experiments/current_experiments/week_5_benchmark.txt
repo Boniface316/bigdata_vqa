@@ -1,5 +1,5 @@
 from divisiveclustering.datautils import DataUtils
-from divisiveclustering.coresetsUtils import Coreset, normalize_np, gen_coreset_graph
+from divisiveclustering.coresetsUtils import Coreset, normalize_np, coreset_to_graph
 from divisiveclustering.vqe_utils import (
     kernel_two_local,
     create_Hamiltonian_for_K2,
@@ -23,8 +23,8 @@ simulator_options = [None, "custatevec", "custatevec_f32", "cuquantum_mgpu"]
 #simulator_options = ["cuquantum"]
 
 number_of_qubits = int(sys.argv[1])
-layer_count = 1
-parameter_count = 4 * layer_count * number_of_qubits
+circuit_depth = 1
+parameter_count = 4 * circuit_depth * number_of_qubits
 shots = int(sys.argv[2])
 
 
@@ -55,7 +55,7 @@ for simulator in simulator_options:
     print(datetime.datetime.now())
     start_time = datetime.datetime.now()
     optimal_expectation, optimal_parameters = cudaq.vqe(
-        kernel=kernel_two_local(number_of_qubits, layer_count),
+        kernel=kernel_two_local(number_of_qubits, circuit_depth),
         spin_operator=H,
         optimizer=optimizer,
         parameter_count=parameter_count,
@@ -63,7 +63,7 @@ for simulator in simulator_options:
     )
 
     counts = cudaq.sample(
-        kernel_two_local(number_of_qubits, layer_count),
+        kernel_two_local(number_of_qubits, circuit_depth),
         optimal_parameters,
         shots_count=shots,
     )
