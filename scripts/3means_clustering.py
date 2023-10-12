@@ -70,3 +70,4 @@ if __name__ == "__main__":
         coreset_numbers=number_of_qubits,
         use_kmeans_cost=False,
     )
+    # TODO: normalize and centralize it

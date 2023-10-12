@@ -1,135 +1,109 @@
+from math import pi
+
+import cudaq
 import numpy as np
 from loguru import logger
-from meansClustering.coresetUtils import Algorithm2, get_bestB
-from meansClustering.vqeUtils import (
-    approximate_n_trials,
-    best_clusters,
-    cluster_cost_whole_set,
-    data_to_graph,
-    random_n_trials,
-)
 from sklearn.cluster import KMeans
 
 from ..coreset import coreset_to_graph
+from ..optimizer import get_optimizer
+from ..vqe_utils import kernel_two_local
 
 
-class VQE3Means:
-    def set_best_cluster_centres_by_brute_force(self, weights=False):
-        """
-        finds the optimal cluster centres on the coreset by brute force.
-        takes the graph representation of the coreset, raw data and coreset
-        weights as params
-        """
-        pass
-
-    def get_3_means_cost(self, centres):
-        """
-        evaluates the 3-means cost function using the provided cluster centres.
-        the data parameter is the dataset to evaluate the cost function on.
-        """
-        pass
-
-    def get_vqe_bound(self, weights=False):
-        """
-        computes the bound on the whole dataset
-        """
-        pass
-
-    def get_vqe_simulation_results(self, depth, num_runs, weights=False):
-        pass
-
-    def get_classical_cost(data, num_cluster_centres=3):
-        """
-        uses sci-kit learn library to compute the 3 mean cost
-        """
-        pass
-
-
-def cluster3means(
+def get_3means_cluster_centers_and_cost(
     coreset_vectors,
     coreset_weights,
-    circuit_depths,
+    circuit_depth,
+    raw_data,
     num_runs=5,
+    best_cost=-np.inf,
+    best_centers=None,
 ):
-    """
-    Approximates the best cluster centres on the coreset.
-    The return type is a dictionary with the simulation results
-    """
-    # Generate graph, then find best clusters and compute bound
     coreset_graph, _ = coreset_to_graph(coreset_vectors, coreset_weights)
 
-    print("Computing VQE bound...")
-    vqe_bound = self.get_vqe_bound(weights=True)
+    for i in range(num_runs):
+        cluster_centers = get_3means_clusters_centers(
+            coreset_graph, coreset_weights, circuit_depth
+        )
+        cost_for_clusters = get_3means_cost(raw_data, cluster_centers)
+        best_cost, best_centers = get_best_cost_and_centers(
+            cost_for_clusters, cluster_centers, best_cost, best_centers
+        )
 
-    print(f"VQE bound: {vqe_bound}")
-
-    total_depths = len(circuit_depths)
-    simulation_costs = np.zeros(total_depths)
-    simulation_centres = np.zeros((total_depths, 3))
-
-    # VQE simulations for each circuit depth
-    for i, depth in circuit_depths:
-        print(f"[{i}/{total_depths}] Simulating with circuit depth {depth}")
-        (
-            simulation_costs[i],
-            simulation_centres[i],
-        ) = self.get_vqe_simulation_results(depth, num_runs, weights=True)
-        print(f"VQE simulation cost for circuit depth {depth}: {simulation_costs[i]}")
-
-    return {
-        "coreset": self.coreset,
-        "weights": self.weights,
-        "circuit depths": circuit_depths,
-        "vqe costs": simulation_costs,
-        "cluster centres": simulation_centres,
-    }
+    return best_cost, best_centers
 
 
-def best_clusters(coreset_graph, coreset_vectors, coreset_weights):
-    """
-    Computes best clusters from the optimal partition where we have assumed
-    equally weighted clusters W1 = W2 = W3 = W/3
-    """
-    # Brute force search best partition
-    partition = best_partition(G)
-    # Get length of feature vectors
+def get_3means_clusters_centers(
+    coreset_graph, coreset_vectors, coreset_weights, circuit_depth
+):
+    # prviusly approx_clusters
+    partition = get_approximate_partition(
+        coreset_graph, circuit_depth
+    )  # [[0], [4, 8], [2, 6]]
+
     cluster_size = len(coreset_vectors[0])
-    # Initialise clusters
-    c1 = np.zeros(cluster_size)
-    c2 = np.zeros(cluster_size)
-    c3 = np.zeros(cluster_size)
-    clusters = np.array([c1, c2, c3])
-    if weights is None:
-        for i in range(len(partition)):
-            for vertex in partition[i]:
-                weight = G.nodes[vertex]["feature_vector"]
-                clusters[i] += weight * (1 / len(partition[i]))
-    else:
-        # Compute the sum of weights divided by 3
-        W = np.sum(weights) / 3
-        # Compute cluster centres
-        for i in range(len(partition)):
-            for vertex in partition[i]:
-                weight = weights[int(vertex / 2)] * G.nodes[vertex]["feature_vector"]
-                clusters[i] += weight * (1 / W)
 
-    return clusters
+    clusters_centers = np.array([np.zeros(cluster_size)] * 3)
+
+    # Compute the sum of weights divided by 3
+
+    W = np.sum(coreset_weights) / 3
+    # Compute cluster centres
+    for i in range(len(partition)):
+        for vertex in partition[i]:
+            # TODO: clarify why we divide by 2
+            weight = (
+                coreset_weights[int(vertex) / 2] * coreset_graph.nodes[vertex]["weight"]
+            )
+            clusters_centers[i] += weight * (1 / W)
+
+    # clusters_centers
+    #     array([[ 5.49645877,  1.69655719],
+    #    [ 3.5570222 , -0.17831894],
+    #    [ 5.7178464 , -0.32430215]])
+
+    return clusters_centers
 
 
-def best_partition(G):
+def get_3means_cost(raw_data, cluster_centers):
+    # previusly cluster_cost_whole_set
+    center1, center2, center3 = cluster_centers
+    cost = 0
+    for index, row_data in raw_data.iterrows():
+        dist = []
+        dist.append(np.linalg.norm(row_data - center1) ** 2)
+        dist.append(np.linalg.norm(row_data - center2) ** 2)
+        dist.append(np.linalg.norm(row_data - center3) ** 2)
+        cost += min(dist)
+
+    return cost
+
+
+def get_best_cost_and_centers(
+    cost_for_clusters, cluster_centers, best_cost, best_centers
+):
+    if cost_for_clusters < best_cost:
+        best_cost = cost_for_clusters
+        best_centres = cluster_centers
+
+    return (best_cost, best_centres)
+
+
+def get_approximate_partition(coreset_graph, circuit_depth):
     """
-    Maps the best state into the best partition
+    Finds approximate partition of the data
     """
+    # Simulate VQE to find the aprroximate state
+    state = approx_optimal_state(coreset_graph, circuit_depth)
     # Initialise the sets
-    s1 = []
-    s2 = []
-    s3 = []
+    s1, s2, s3, sets = [], [], [], []
     # Create list of vertices of G
-    vertices = list(G.nodes)
-    # Brute force the optimal state
-    (_, state) = find_optimal_state(G)
+    vertices = list(coreset_graph.nodes)
+    # vertices = [0,2,4,6,8,10]
     # Split bitstring into pairs representing vertices
-    pairs = [state[i : i + 2] for i in range(0, len(state), 2)]
+    pairs = [
+        state[i : i + 2] for i in range(0, len(state), 2)
+    ]  # pairs - ['00', '11', '10', '01', '10']
     # Check vertices for which set they correspond to
     for i, vertex in enumerate(pairs):
         if vertex == "00":
@@ -141,9 +115,55 @@ def best_partition(G):
         elif vertex == "11":
             s3.append(vertices[i])
 
-    sets = []
     sets.append(s1)
     sets.append(s2)
     sets.append(s3)
 
-    return sets
+    return sets  # [[0], [4, 8], [2, 6]]
+
+
+def approx_optimal_state(
+    coreset_graph, circuit_depth, max_iterations=100, max_shots=1024
+):
+    """
+    #Optimises the vqe parameters to approximate an optimal state
+    Inputs:
+    G: type networkx graph - the problem graph
+    depth: type int - the circuit depth to be used
+    """
+    # Each qubit requires two parameters and there are twice as many
+    # qubits as nodes in the graph.
+    number_of_qubits = 2 * len(list(coreset_graph.nodes))
+    # Using the formula: num_params = 2 * num_qubits * (depth + 1)
+    # TODO: verify this works with the current setup - maybe take it from divclustering
+    number_of_parameters = 2 * number_of_qubits * (circuit_depth + 1)
+
+    # Find optimal parameters
+    optimizer, parameter_count = get_optimizer(
+        max_iterations, circuit_depth, number_of_qubits
+    )
+
+    Hamiltonian = get_3means_Hamiltonian()
+
+    _, optimal_parameters = cudaq.vqe(
+        kernel=kernel_two_local(number_of_qubitsqubits, circuit_depth),
+        spin_operator=Hamiltonian[0],
+        optimizer=optimizer,
+        parameter_count=parameter_count,
+        shots=max_shots,
+    )
+
+    counts = cudaq.sample(
+        kernel_two_local(number_of_qubits, circuit_depth),
+        optimal_parameters,
+        shots_count=max_shots,
+    )
+
+    # Find the state that was measured most frequently
+    # opt_state return from the original code - i.e 0011100110
+    return counts.most_probable()
+
+
+def get_3means_Hamiltonian():
+    # @Dan - can you put your Hamiltionian here?
+    pass

@@ -1,8 +1,9 @@
-
 from typing import List
 
 import networkx as nx
 import pandas as pd
+
+# Divisive clustering
 
 
 def get_probs_table(counts, qubits):
@@ -104,4 +105,3 @@ def bitstring_cost_using_maxcut(bitstring: str, i, j, edge_weight):
 
     val = -1 * edge_weight * (1 - ((-1) ** ai) * ((-1) ** aj))  # MaxCut equation
     return val
-
