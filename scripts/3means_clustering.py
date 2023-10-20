@@ -4,9 +4,11 @@ import os as os
 import pandas as pd
 from loguru import logger
 
-from bigdatavqa.coreset import Coreset
+from bigdatavqa.coreset import Coreset, normalize_np
 from bigdatavqa.datautils import DataUtils
+from bigdatavqa.k3meansclustering import get_3means_cluster_centers_and_cost
 
+breakpoint()
 # from meansClustering.vqe3means import Vqe_3_Means
 
 
@@ -70,4 +72,13 @@ if __name__ == "__main__":
         coreset_numbers=number_of_qubits,
         use_kmeans_cost=False,
     )
-    # TODO: normalize and centralize it
+
+    coreset_vectors, coreset_weights = normalize_np(coreset_vectors, centralize=True), normalize_np(coreset_vectors, centralize=True)
+
+    
+    cluster_centers, cluster_cost = get_3means_cluster_centers_and_cost(
+        coreset_vectors,
+        coreset_weights,
+        circuit_depth,
+        raw_data,
+    )

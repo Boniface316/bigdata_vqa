@@ -30,7 +30,7 @@ def get_3means_cluster_centers_and_cost(
             cost_for_clusters, cluster_centers, best_cost, best_centers
         )
 
-    return best_cost, best_centers
+    return best_centers, best_cost
 
 
 def get_3means_clusters_centers(
