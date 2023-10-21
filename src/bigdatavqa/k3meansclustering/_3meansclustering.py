@@ -4,6 +4,8 @@ import cudaq
 import numpy as np
 from loguru import logger
 from sklearn.cluster import KMeans
+from cudaq import spin
+
 
 from ..coreset import coreset_to_graph
 from ..optimizer import get_optimizer
@@ -146,7 +148,7 @@ def approx_optimal_state(
     Hamiltonian = get_3means_Hamiltonian()
 
     _, optimal_parameters = cudaq.vqe(
-        kernel=kernel_two_local(number_of_qubitsqubits, circuit_depth),
+        kernel=kernel_two_local(number_of_qubits, circuit_depth),
         spin_operator=Hamiltonian[0],
         optimizer=optimizer,
         parameter_count=parameter_count,
@@ -164,6 +166,15 @@ def approx_optimal_state(
     return counts.most_probable()
 
 
-def get_3means_Hamiltonian():
-    # @Dan - can you put your Hamiltionian here?
-    pass
+def get_3means_Hamiltonian(G):
+    for i,j in G.edges():
+        weight = G[i][j]["weight"]
+        H += weight * ((5 * spin.i(0) * spin.i(1) * spin.i(2) * spin.i(3)) + spin.z(1) + spin.z(3) \
+             - (spin.z(0) * spin.z(2)) - (3 * spin.z(1) * spin.z(3)) - (spin.z(0) * spin.z(1) * spin.z(2)) \
+             - (spin.z(0) * spin.z(2) * spin.z(3)) - (spin.z(0) * spin.z(1) * spin.z(2) * spin.z(3)))
+        
+    return -(1 / 8) * H
+        
+
+
+
