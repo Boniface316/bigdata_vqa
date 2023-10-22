@@ -7,9 +7,26 @@ from sklearn.cluster import KMeans
 from cudaq import spin
 
 
-from ..coreset import coreset_to_graph
+from ..coreset import coreset_to_graph, Coreset, normalize_np
 from ..optimizer import get_optimizer
 from ..vqe_utils import kernel_two_local
+
+
+def get_coreset_vec_and_weights(
+    raw_data,
+    number_of_qubits,
+    number_of_coresets_to_evaluate,
+    number_of_centroids_evaluation,
+):
+    coreset = Coreset()
+
+    return coreset.get_best_coresets(
+        data_vectors=raw_data,
+        number_of_runs=number_of_centroids_evaluation,
+        coreset_numbers=number_of_qubits,
+        size_vec_list=number_of_coresets_to_evaluate,
+        use_kmeans_cost=False,
+    )
 
 
 def get_3means_cluster_centers_and_cost(
@@ -20,7 +37,18 @@ def get_3means_cluster_centers_and_cost(
     num_runs=5,
     best_cost=-np.inf,
     best_centers=None,
+    normalize=True,
+    centralize=True,
 ):
+    coreset_vectors, coreset_weights = get_coreset_vec_and_weights()
+
+    if normalize:
+        coreset_vectors, coreset_weights = normalize_np(
+            coreset_vectors, centralize=centralize
+        ), normalize_np(coreset_weights, centralize=centralize)
+
+    # TODO: coreset_to_graph - use two qubits to represent a node
+
     coreset_graph, _ = coreset_to_graph(coreset_vectors, coreset_weights)
 
     for i in range(num_runs):
@@ -167,14 +195,17 @@ def approx_optimal_state(
 
 
 def get_3means_Hamiltonian(G):
-    for i,j in G.edges():
+    for i, j in G.edges():
         weight = G[i][j]["weight"]
-        H += weight * ((5 * spin.i(0) * spin.i(1) * spin.i(2) * spin.i(3)) + spin.z(1) + spin.z(3) \
-             - (spin.z(0) * spin.z(2)) - (3 * spin.z(1) * spin.z(3)) - (spin.z(0) * spin.z(1) * spin.z(2)) \
-             - (spin.z(0) * spin.z(2) * spin.z(3)) - (spin.z(0) * spin.z(1) * spin.z(2) * spin.z(3)))
-        
+        H += weight * (
+            (5 * spin.i(0) * spin.i(1) * spin.i(2) * spin.i(3))
+            + spin.z(1)
+            + spin.z(3)
+            - (spin.z(0) * spin.z(2))
+            - (3 * spin.z(1) * spin.z(3))
+            - (spin.z(0) * spin.z(1) * spin.z(2))
+            - (spin.z(0) * spin.z(2) * spin.z(3))
+            - (spin.z(0) * spin.z(1) * spin.z(2) * spin.z(3))
+        )
+
     return -(1 / 8) * H
-        
-
-
-

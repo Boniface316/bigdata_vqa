@@ -1,12 +1,10 @@
 import argparse
-import os as os
+import warnings
 
-import pandas as pd
 from loguru import logger
 
-from bigdatavqa.coreset import Coreset, normalize_np
 from bigdatavqa.datautils import DataUtils
-from bigdatavqa.k3meansclustering import get_3means_cluster_centers_and_cost
+from bigdatavqa.gmm import run_gmm
 
 parser = argparse.ArgumentParser(description="GMM experiment parameters")
 
@@ -45,7 +43,7 @@ args = parser.parse_args()
 
 
 logger.add(
-    ".logs/3means_clustering.log",
+    ".logs/GMM.log",
     rotation="10 MB",
     compression="zip",
     level="INFO",
@@ -72,39 +70,20 @@ logger.info(f"Number of coresets to evaluate: {number_of_corsets_to_evaluate}")
 logger.info(f"Number of centroid evaluations: {number_of_centroid_evaluation}")
 
 
-def get_raw_data(data_location):
-    return raw_data
-
-
-# Means3Vqe = Vqe_3_Means(data, sample_size=5)
-# results = Means3Vqe.fit_coreset([1, 2])
-# results
-
-
 if __name__ == "__main__":
     data_utils = DataUtils(data_location)
-
     try:
         raw_data = data_utils.load_dataset()
     except FileNotFoundError:
         raw_data = data_utils.create_dataset(n_samples=1000)
 
-    coreset = Coreset()
-    coreset_vectors, coreset_weights = coreset.get_best_coresets(
-        data_vectors=raw_data,
-        number_of_runs=size_vec_list,
-        coreset_numbers=number_of_qubits,
-        use_kmeans_cost=False,
-    )
-
-    coreset_vectors, coreset_weights = normalize_np(
-        coreset_vectors, centralize=True
-    ), normalize_np(coreset_vectors, centralize=True)
-
-    cluster_centers, cluster_cost = get_3means_cluster_centers_and_cost(
-        coreset_vectors,
-        coreset_weights,
-        circuit_depth,
+    optimal_bitstring = run_gmm(
         raw_data,
-        num_runs=max_iterations,
+        number_of_qubits,
+        number_of_centroid_evaluation,
+        number_of_corsets_to_evaluate,
+        circuit_depth,
+        max_shots,
+        max_iterations,
     )
+    logger.success(f"Optimal bitstring: {optimal_bitstring}")

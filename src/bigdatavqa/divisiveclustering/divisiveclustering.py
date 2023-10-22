@@ -1,19 +1,55 @@
 import cudaq
 from loguru import logger
 
-from ..coreset import get_coreset_vector_df, get_coreset_vectors_to_evaluate
+from ..coreset import (
+    Coreset,
+    get_coreset_vector_df,
+    get_coreset_vectors_to_evaluate,
+    coreset_to_graph,
+    get_cv_cw,
+)
 from ..optimizer import get_optimizer
 from ..postexecution import add_children_to_hierachial_clustering, get_best_bitstring
 from ..vqe_utils import (
-    create_Hamiltonian_for_K2,
-    get_Hamiltonian_variables,
     kernel_two_local,
 )
+import numpy as np
+from cudaq import spin
+import cudaq
+import pandas as pd
+from typing import Optional
+
+
+def get_coreset_vec_and_weights(
+    raw_data,
+    number_of_qubits,
+    number_of_centroids_evaluation,
+    number_of_coresets_to_evaluate,
+):
+    coreset = Coreset()
+    return coreset.get_best_coresets(
+        data_vectors=raw_data,
+        number_of_runs=number_of_centroids_evaluation,
+        coreset_numbers=number_of_qubits,
+        size_vec_list=number_of_coresets_to_evaluate,
+    )
 
 
 def create_hierarchial_cluster(
-    coreset_vectors, coreset_weights, max_shots, max_iterations, circuit_depth
+    raw_data,
+    number_of_qubits,
+    number_of_centroids_evaluation,
+    number_of_coresets_to_evaluate,
+    max_shots,
+    max_iterations,
+    circuit_depth,
 ):
+    coreset_vectors, coreset_weights = get_coreset_vec_and_weights(
+        raw_data,
+        number_of_qubits,
+        number_of_centroids_evaluation,
+        number_of_coresets_to_evaluate,
+    )
     index_iteration_counter = 0
     single_clusters = 0
 
@@ -80,7 +116,7 @@ def create_hierarchial_cluster(
                 f"index iteration counter: {index_iteration_counter} Last splits: {hierarchial_clustering_sequence[-1]} {hierarchial_clustering_sequence[-2]} "
             )
         index_iteration_counter += 1
-    logger.info(
+    logger.success(
         f"Final results from hierarchial clustering: {hierarchial_clustering_sequence}"
     )
 
@@ -121,3 +157,56 @@ def get_hamiltonian_coreset_vector_G(
         coreset_vectors_df_to_evaluate,
         G,
     )
+
+
+def get_Hamiltonian_variables(
+    coreset_vectors: np.ndarray,
+    coreset_weights: np.ndarray,
+    index_vals_temp: Optional[int] = None,
+    new_df: Optional[pd.DataFrame] = None,
+):
+    """
+    Generates the variables required for Hamiltonian
+
+    Args:
+        coreset_vectors: Coreset vectors
+        coreset_weights: Coreset weights
+        index_vals_temp: Index in the hierarchy
+        new_df: new dataframe create for this problem,
+
+    Returns:
+       Graph, weights and qubits
+    """
+    if new_df is not None and index_vals_temp is not None:
+        coreset_weights, coreset_vectors = get_cv_cw(
+            coreset_vectors, coreset_weights, index_vals_temp
+        )
+
+    G, weights = coreset_to_graph(coreset_vectors, coreset_weights, metric="dot")
+    qubits = len(G.nodes)
+
+    return G, weights, qubits
+
+
+def create_Hamiltonian_for_K2(
+    G, qubits, weights: np.ndarray = None, add_identity=False
+):
+    """
+    Generate Hamiltonian for k=2
+
+    Args:
+        G: Problem as a graph
+        weights: Edge weights
+        nodes: nodes of the graph
+        add_identity: Add identiy or not. Defaults to False.
+
+    Returns:
+        _type_: _description_
+    """
+    H = 0
+
+    for i, j in G.edges():
+        weight = G[i][j]["weight"]  # [0]
+        H += weight * (spin.z(i) * spin.z(j))
+
+    return H
