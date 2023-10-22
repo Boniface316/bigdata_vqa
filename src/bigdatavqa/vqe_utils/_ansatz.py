@@ -1,13 +1,4 @@
-from typing import Optional
-
 import cudaq
-import networkx as nx
-import numpy as np
-import pandas as pd
-from cudaq import spin
-
-from ..coreset._coreset import coreset_to_graph, get_cv_cw
-from ._helpers import create_pauli_operators
 
 
 def kernel_two_local(number_of_qubits, circuit_depth) -> cudaq.Kernel:
