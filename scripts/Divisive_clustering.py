@@ -43,7 +43,7 @@ args = parser.parse_args()
 
 
 logger.add(
-    f".logs/3means.log",
+    f".logs/divisive_clustering.log",
     rotation="10 MB",
     compression="zip",
     level="INFO",
