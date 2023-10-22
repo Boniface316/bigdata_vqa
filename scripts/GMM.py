@@ -43,7 +43,7 @@ args = parser.parse_args()
 
 
 logger.add(
-    f".logs/GMM.log",
+    ".logs/GMM.log",
     rotation="10 MB",
     compression="zip",
     level="INFO",
