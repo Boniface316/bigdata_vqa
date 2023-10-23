@@ -125,7 +125,7 @@ class Coreset:
             )
 
             coreset_vectors, coreset_weights = self.Algorithm2(
-                data_vectors, B, coreset_numbers, sample_size
+                data_vectors, B, coreset_numbers
             )
 
         return np.array(coreset_vectors), np.array(coreset_weights)
@@ -149,7 +149,13 @@ class Coreset:
         best_index = cost_coreset.index(np.min(cost_coreset))
         return (coreset_vectors[best_index], coreset_weights[best_index])
 
-    def Algorithm2(self, data_vectors, B, k=3, sample_size=5):
+    def Algorithm2(
+        self,
+        data_vectors,
+        B,
+        coreset_size,
+        k=3,
+    ):
         alpha = 16 * (np.log2(k) + 2)
 
         B_i_totals = [0] * len(B)
@@ -184,8 +190,8 @@ class Coreset:
             p[i] += 4 * len(data_vectors) / B_i_totals[closest_index]
         p = p / sum(p)
 
-        chosen_indices = np.random.choice(len(data_vectors), size=sample_size, p=p)
-        weights = [1 / (sample_size * p[i]) for i in chosen_indices]
+        chosen_indices = np.random.choice(len(data_vectors), size=coreset_size, p=p)
+        weights = [1 / (coreset_size * p[i]) for i in chosen_indices]
 
         return [data_vectors[i] for i in chosen_indices], weights
 

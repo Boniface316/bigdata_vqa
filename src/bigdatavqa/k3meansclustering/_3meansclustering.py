@@ -201,14 +201,14 @@ def get_3means_Hamiltonian(G):
     for i, j in G.edges():
         weight = G[i][j]["weight"]
         H += weight * (
-            (5 * spin.i(0) * spin.i(1) * spin.i(2) * spin.i(3))
-            + spin.z(1)
-            + spin.z(3)
-            - (spin.z(0) * spin.z(2))
-            - (3 * spin.z(1) * spin.z(3))
-            - (spin.z(0) * spin.z(1) * spin.z(2))
-            - (spin.z(0) * spin.z(2) * spin.z(3))
-            - (spin.z(0) * spin.z(1) * spin.z(2) * spin.z(3))
+            (5 * spin.i(i) * spin.i(i + 1) * spin.i(j) * spin.i(j + 1))
+            + spin.z(i + 1)
+            + spin.z(j + 1)
+            - (spin.z(i) * spin.z(j))
+            - (3 * spin.z(i + 1) * spin.z(j + 1))
+            - (spin.z(i) * spin.z(i + 1) * spin.z(j))
+            - (spin.z(i) * spin.z(j) * spin.z(j + 1))
+            - (spin.z(i) * spin.z(i + 1) * spin.z(j) * spin.z(j + 1))
         )
 
     return -(1 / 8) * H
