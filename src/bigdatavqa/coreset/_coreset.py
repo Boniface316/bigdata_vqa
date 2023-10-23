@@ -194,6 +194,7 @@ def coreset_to_graph(
     coreset_vectors: np.ndarray,
     coreset_weights: np.ndarray,
     metric: str = "dot",
+    number_of_qubits_representing_data: int = 1,
 ):
     """
     Generate a complete weighted graph using the provided set of coreset points
@@ -231,17 +232,32 @@ def coreset_to_graph(
         coreset = generate_graph_instance(coreset)
 
     # Generate a networkx graph with correct edge weights
-    n = len(coreset)
-    G = nx.complete_graph(n)
+    vertices = len(coreset)
+    vertex_labels = [
+        number_of_qubits_representing_data * int(i) for i in range(vertices)
+    ]
+    G = nx.Graph()
+    G.add_nodes_from(vertex_labels)
+    edges = [
+        (number_of_qubits_representing_data * i, number_of_qubits_representing_data * j)
+        for i in range(vertices)
+        for j in range(i + 1, vertices)
+    ]
+
+    G.add_edges_from(edges)
+
     weights = []
 
     for edge in G.edges():
         v_i = edge[0]
         v_j = edge[1]
-        w_i = coreset[v_i][0]
-        w_j = coreset[v_j][0]
+        w_i = coreset[v_i // number_of_qubits_representing_data][0]
+        w_j = coreset[v_j // number_of_qubits_representing_data][0]
         if metric == "dot":
-            mval = np.dot(coreset[v_i][1], coreset[v_j][1])
+            mval = np.dot(
+                coreset[v_i // number_of_qubits_representing_data][1],
+                coreset[v_j // number_of_qubits_representing_data][1],
+            )
         elif metric == "dist":
             mval = np.linalg.norm(coreset[v_i][1] - coreset[v_j][1])
         else:

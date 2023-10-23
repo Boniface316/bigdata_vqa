@@ -14,7 +14,7 @@ from ..vqe_utils import kernel_two_local
 
 def get_coreset_vec_and_weights(
     raw_data,
-    number_of_qubits,
+    coreset_size,
     number_of_coresets_to_evaluate,
     number_of_centroids_evaluation,
 ):
@@ -23,52 +23,64 @@ def get_coreset_vec_and_weights(
     return coreset.get_best_coresets(
         data_vectors=raw_data,
         number_of_runs=number_of_centroids_evaluation,
-        coreset_numbers=number_of_qubits,
+        coreset_numbers=coreset_size,
         size_vec_list=number_of_coresets_to_evaluate,
         use_kmeans_cost=False,
     )
 
 
 def get_3means_cluster_centers_and_cost(
-    coreset_vectors,
-    coreset_weights,
-    circuit_depth,
     raw_data,
-    num_runs=5,
-    best_cost=-np.inf,
-    best_centers=None,
+    circuit_depth,
+    coreset_size,
+    number_of_coresets_to_evaluate,
+    number_of_centroids_evaluation,
+    max_shots,
+    max_iterations,
     normalize=True,
     centralize=True,
 ):
-    coreset_vectors, coreset_weights = get_coreset_vec_and_weights()
+    coreset_vectors, coreset_weights = get_coreset_vec_and_weights(
+        raw_data,
+        coreset_size,
+        number_of_coresets_to_evaluate,
+        number_of_centroids_evaluation,
+    )
 
     if normalize:
         coreset_vectors, coreset_weights = normalize_np(
             coreset_vectors, centralize=centralize
         ), normalize_np(coreset_weights, centralize=centralize)
 
-    # TODO: coreset_to_graph - use two qubits to represent a node
+    coreset_graph, _ = coreset_to_graph(
+        coreset_vectors, coreset_weights, number_of_qubits_representing_data=2
+    )
 
-    coreset_graph, _ = coreset_to_graph(coreset_vectors, coreset_weights)
+    cluster_centers = get_3means_clusters_centers(
+        coreset_graph,
+        coreset_vectors,
+        coreset_weights,
+        circuit_depth,
+        max_shots,
+        max_iterations,
+    )
 
-    for i in range(num_runs):
-        cluster_centers = get_3means_clusters_centers(
-            coreset_graph, coreset_weights, circuit_depth
-        )
-        cost_for_clusters = get_3means_cost(raw_data, cluster_centers)
-        best_cost, best_centers = get_best_cost_and_centers(
-            cost_for_clusters, cluster_centers, best_cost, best_centers
-        )
+    cost_for_clusters = get_3means_cost(raw_data, cluster_centers)
 
-    return best_centers, best_cost
+    return cluster_centers, cost_for_clusters
 
 
 def get_3means_clusters_centers(
-    coreset_graph, coreset_vectors, coreset_weights, circuit_depth
+    coreset_graph,
+    coreset_vectors,
+    coreset_weights,
+    circuit_depth,
+    max_shots,
+    max_iterations,
 ):
     # prviusly approx_clusters
     partition = get_approximate_partition(
-        coreset_graph, circuit_depth
+        coreset_graph, circuit_depth, max_shots, max_iterations
     )  # [[0], [4, 8], [2, 6]]
 
     cluster_size = len(coreset_vectors[0])
@@ -79,12 +91,10 @@ def get_3means_clusters_centers(
 
     W = np.sum(coreset_weights) / 3
     # Compute cluster centres
+
     for i in range(len(partition)):
         for vertex in partition[i]:
-            # TODO: clarify why we divide by 2
-            weight = (
-                coreset_weights[int(vertex) / 2] * coreset_graph.nodes[vertex]["weight"]
-            )
+            weight = coreset_weights[int(vertex / 2)] * coreset_vectors[int(vertex / 2)]
             clusters_centers[i] += weight * (1 / W)
 
     # clusters_centers
@@ -99,7 +109,8 @@ def get_3means_cost(raw_data, cluster_centers):
     # previusly cluster_cost_whole_set
     center1, center2, center3 = cluster_centers
     cost = 0
-    for index, row_data in raw_data.iterrows():
+
+    for row_data in raw_data:
         dist = []
         dist.append(np.linalg.norm(row_data - center1) ** 2)
         dist.append(np.linalg.norm(row_data - center2) ** 2)
@@ -109,22 +120,14 @@ def get_3means_cost(raw_data, cluster_centers):
     return cost
 
 
-def get_best_cost_and_centers(
-    cost_for_clusters, cluster_centers, best_cost, best_centers
-):
-    if cost_for_clusters < best_cost:
-        best_cost = cost_for_clusters
-        best_centres = cluster_centers
-
-    return (best_cost, best_centres)
-
-
-def get_approximate_partition(coreset_graph, circuit_depth):
+def get_approximate_partition(coreset_graph, circuit_depth, max_shots, max_iterations):
     """
     Finds approximate partition of the data
     """
     # Simulate VQE to find the aprroximate state
-    state = approx_optimal_state(coreset_graph, circuit_depth)
+    state = approx_optimal_state(
+        coreset_graph, circuit_depth, max_shots, max_iterations
+    )
     # Initialise the sets
     s1, s2, s3, sets = [], [], [], []
     # Create list of vertices of G
@@ -164,16 +167,15 @@ def approx_optimal_state(
     # Each qubit requires two parameters and there are twice as many
     # qubits as nodes in the graph.
     number_of_qubits = 2 * len(list(coreset_graph.nodes))
-    # Using the formula: num_params = 2 * num_qubits * (depth + 1)
-    # TODO: verify this works with the current setup - maybe take it from divclustering
-    number_of_parameters = 2 * number_of_qubits * (circuit_depth + 1)
 
     # Find optimal parameters
     optimizer, parameter_count = get_optimizer(
         max_iterations, circuit_depth, number_of_qubits
     )
 
-    Hamiltonian = get_3means_Hamiltonian()
+    Hamiltonian = get_3means_Hamiltonian(coreset_graph)
+
+    breakpoint()
 
     _, optimal_parameters = cudaq.vqe(
         kernel=kernel_two_local(number_of_qubits, circuit_depth),
@@ -195,6 +197,7 @@ def approx_optimal_state(
 
 
 def get_3means_Hamiltonian(G):
+    H = 0
     for i, j in G.edges():
         weight = G[i][j]["weight"]
         H += weight * (
