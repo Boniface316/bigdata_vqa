@@ -175,8 +175,6 @@ def approx_optimal_state(
 
     Hamiltonian = get_3means_Hamiltonian(coreset_graph)
 
-    breakpoint()
-
     _, optimal_parameters = cudaq.vqe(
         kernel=kernel_two_local(number_of_qubits, circuit_depth),
         spin_operator=Hamiltonian[0],

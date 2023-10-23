@@ -50,7 +50,6 @@ def create_hierarchial_cluster(
         number_of_centroids_evaluation,
         number_of_coresets_to_evaluate,
     )
-    breakpoint()
     index_iteration_counter = 0
     single_clusters = 0
 
