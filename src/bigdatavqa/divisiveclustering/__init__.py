@@ -1,1 +1,2 @@
-from .divisiveclustering import create_hierarchial_cluster
+from .divisiveclustering import create_hierarchial_cluster, get_coreset_vec_and_weights
+from .dendrogram import Dendrogram
