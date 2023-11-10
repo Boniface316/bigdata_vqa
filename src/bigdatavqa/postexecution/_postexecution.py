@@ -1,8 +1,10 @@
-
 from typing import List
 
 import networkx as nx
+import numpy as np
 import pandas as pd
+
+# Divisive clustering
 
 
 def get_probs_table(counts, qubits):
@@ -105,3 +107,46 @@ def bitstring_cost_using_maxcut(bitstring: str, i, j, edge_weight):
     val = -1 * edge_weight * (1 - ((-1) ** ai) * ((-1) ** aj))  # MaxCut equation
     return val
 
+
+def get_divisive_cluster_cost(dendo, hc, centroid_coords):
+    cost_list = []
+    for parent_posn in range(len(hc)):
+        children_lst = dendo.find_children(parent_posn)
+
+        if len(children_lst) == 0:
+            continue
+        else:
+            index_vals_temp = hc[parent_posn]
+            child_1 = children_lst[0]
+            child_2 = children_lst[1]
+
+            if isinstance(index_vals_temp[0], str):
+                index_vals_temp = [ord(c) - ord("A") for c in index_vals_temp]
+                child_1 = [ord(c) - ord("A") for c in child_1]
+                child_2 = [ord(c) - ord("A") for c in child_2]
+
+            new_df = dendo.coreset_data.iloc[index_vals_temp]
+
+            child_1_str = str(child_1)
+            child_2_str = str(child_2)
+
+            new_df["cluster"] = 0
+            new_df.loc[child_1, "cluster"] = 1
+
+            cost = 0
+
+            for idx, row in new_df.iterrows():
+                if row.cluster == 0:
+                    cost += (
+                        np.linalg.norm(row[["X", "Y"]] - centroid_coords[child_1_str])
+                        ** 2
+                    )
+                else:
+                    cost += (
+                        np.linalg.norm(row[["X", "Y"]] - centroid_coords[child_2_str])
+                        ** 2
+                    )
+
+            cost_list.append(cost)
+
+    return cost_list

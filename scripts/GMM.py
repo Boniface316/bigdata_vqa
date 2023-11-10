@@ -4,9 +4,9 @@ import warnings
 from loguru import logger
 
 from bigdatavqa.datautils import DataUtils
-from bigdatavqa.divisiveclustering import create_hierarchial_cluster
+from bigdatavqa.gmm import run_gmm
 
-parser = argparse.ArgumentParser(description="Divisive clustering circuit parameters")
+parser = argparse.ArgumentParser(description="GMM experiment parameters")
 
 parser.add_argument("--qubits", type=int, required=True, help="Number of qubits")
 parser.add_argument("--circuit_depth", type=int, required=True, help="Circuit depth")
@@ -43,7 +43,7 @@ args = parser.parse_args()
 
 
 logger.add(
-    ".logs/divisive_clustering.log",
+    ".logs/GMM.log",
     rotation="10 MB",
     compression="zip",
     level="INFO",
@@ -72,20 +72,18 @@ logger.info(f"Number of centroid evaluations: {number_of_centroid_evaluation}")
 
 if __name__ == "__main__":
     data_utils = DataUtils(data_location)
-
     try:
         raw_data = data_utils.load_dataset()
     except FileNotFoundError:
         raw_data = data_utils.create_dataset(n_samples=1000)
 
-    hierarchial_cluster = create_hierarchial_cluster(
+    optimal_bitstring = run_gmm(
         raw_data,
         number_of_qubits,
         number_of_centroid_evaluation,
         number_of_corsets_to_evaluate,
+        circuit_depth,
         max_shots,
         max_iterations,
-        circuit_depth,
     )
-
-    logger.success("Completed!")
+    logger.success(f"Optimal bitstring: {optimal_bitstring}")

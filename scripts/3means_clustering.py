@@ -1,12 +1,15 @@
 import argparse
-import warnings
+import os as os
 
+import numpy as np
 from loguru import logger
 
+from bigdatavqa.coreset import Coreset, normalize_np
 from bigdatavqa.datautils import DataUtils
-from bigdatavqa.divisiveclustering import create_hierarchial_cluster
+from bigdatavqa.k3meansclustering import get_3means_cluster_centers_and_cost
 
-parser = argparse.ArgumentParser(description="Divisive clustering circuit parameters")
+best_cost = np.inf
+parser = argparse.ArgumentParser(description="GMM experiment parameters")
 
 parser.add_argument("--qubits", type=int, required=True, help="Number of qubits")
 parser.add_argument("--circuit_depth", type=int, required=True, help="Circuit depth")
@@ -43,7 +46,7 @@ args = parser.parse_args()
 
 
 logger.add(
-    ".logs/divisive_clustering.log",
+    ".logs/3means_clustering.log",
     rotation="10 MB",
     compression="zip",
     level="INFO",
@@ -51,7 +54,7 @@ logger.add(
 )
 
 
-number_of_qubits = args.qubits
+coreset_size = args.qubits * 2
 circuit_depth = args.circuit_depth
 max_shots = args.number_of_shots
 max_iterations = args.iterations
@@ -60,7 +63,7 @@ data_location = args.data_location
 number_of_corsets_to_evaluate = args.number_of_coresets_to_evaluate
 number_of_centroid_evaluation = args.centroid_numbers
 
-logger.info(f"Number of qubits: {number_of_qubits}")
+logger.info(f"Coreset size: {coreset_size}")
 logger.info(f"Circuit depth: {circuit_depth}")
 logger.info(f"Max iterations: {max_iterations}")
 logger.info(f"Max shots: {max_shots}")
@@ -78,14 +81,25 @@ if __name__ == "__main__":
     except FileNotFoundError:
         raw_data = data_utils.create_dataset(n_samples=1000)
 
-    hierarchial_cluster = create_hierarchial_cluster(
-        raw_data,
-        number_of_qubits,
-        number_of_centroid_evaluation,
-        number_of_corsets_to_evaluate,
-        max_shots,
-        max_iterations,
-        circuit_depth,
-    )
+    for i in range(number_of_experiment_runs):
+        cluster_centers, cost_for_clusters = get_3means_cluster_centers_and_cost(
+            raw_data,
+            circuit_depth,
+            coreset_size,
+            number_of_corsets_to_evaluate,
+            number_of_centroid_evaluation,
+            max_shots,
+            max_iterations,
+        )
+        logger.info(
+            f"Clusters:{cluster_centers} \n  Cost for clusters: {cost_for_clusters}"
+        )
 
-    logger.success("Completed!")
+        if cost_for_clusters < best_cost:
+            best_cost = cost_for_clusters
+            best_cluster_centers = cluster_centers
+            logger.info("New cost is better than the previous best cost")
+
+    logger.success(
+        f"Best cluster centers: {best_cluster_centers} \n Best cost: {best_cost}"
+    )
