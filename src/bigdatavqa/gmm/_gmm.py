@@ -137,7 +137,6 @@ def create_GMM_hamiltonian(coreset_vectors, coreset_weights):
         operator_string = op[0]
         coeff = op[1]
         operator = 1
-        print(f"idx :{idx}, op_string: {operator_string}")
 
         for i in range(len(operator_string)):
             op_i = operator_string[i]
@@ -145,7 +144,6 @@ def create_GMM_hamiltonian(coreset_vectors, coreset_weights):
                 operator *= spin.z(i)
             if op_i == "I":
                 operator *= spin.i(i)
-        print(operator)
         H += coeff * operator
 
     return -1 * H

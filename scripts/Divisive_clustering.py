@@ -78,7 +78,7 @@ if __name__ == "__main__":
     except FileNotFoundError:
         raw_data = data_utils.create_dataset(n_samples=1000)
 
-    create_hierarchial_cluster(
+    hierarchial_cluster = create_hierarchial_cluster(
         raw_data,
         number_of_qubits,
         number_of_centroid_evaluation,

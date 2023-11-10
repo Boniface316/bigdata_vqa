@@ -8,11 +8,10 @@ from bigdatavqa.coreset import Coreset, normalize_np
 from bigdatavqa.datautils import DataUtils
 from bigdatavqa.k3meansclustering import get_3means_cluster_centers_and_cost
 
-
 best_cost = np.inf
 parser = argparse.ArgumentParser(description="GMM experiment parameters")
 
-parser.add_argument("--coreset_size", type=int, required=True, help="Coreset size")
+parser.add_argument("--qubits", type=int, required=True, help="Number of qubits")
 parser.add_argument("--circuit_depth", type=int, required=True, help="Circuit depth")
 parser.add_argument(
     "--number_of_shots", type=int, required=True, help="Number of shots"
@@ -55,7 +54,7 @@ logger.add(
 )
 
 
-coreset_size = args.coreset_size
+coreset_size = args.qubits * 2
 circuit_depth = args.circuit_depth
 max_shots = args.number_of_shots
 max_iterations = args.iterations

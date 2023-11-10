@@ -1,23 +1,21 @@
+from typing import Optional
+
 import cudaq
+import numpy as np
+import pandas as pd
+from cudaq import spin
 from loguru import logger
 
 from ..coreset import (
     Coreset,
+    coreset_to_graph,
     get_coreset_vector_df,
     get_coreset_vectors_to_evaluate,
-    coreset_to_graph,
     get_cv_cw,
 )
 from ..optimizer import get_optimizer
 from ..postexecution import add_children_to_hierachial_clustering, get_best_bitstring
-from ..vqe_utils import (
-    kernel_two_local,
-)
-import numpy as np
-from cudaq import spin
-import cudaq
-import pandas as pd
-from typing import Optional
+from ..vqe_utils import kernel_two_local
 
 
 def get_coreset_vec_and_weights(
@@ -119,6 +117,8 @@ def create_hierarchial_cluster(
     logger.success(
         f"Final results from hierarchial clustering: {hierarchial_clustering_sequence}"
     )
+
+    return hierarchial_clustering_sequence, [coreset_vectors, coreset_weights]
 
 
 def get_hierarchial_clustering_sequence(coreset_weights):

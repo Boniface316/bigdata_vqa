@@ -16,7 +16,7 @@ class Dendrogram:
         hierarchial_clustering_sequence,
         coreset_data,
         raw_data,
-        dendrogram_file="data/dendrogram_df",
+        dendrogram_file="/workspace/vqa/data/results/divisive_clustering/dendrogram_df",
         use_normalized_coreset=True,
         cluster_reference_dict=None,
         centroids_dist_df=None,
@@ -302,6 +302,7 @@ class Dendrogram:
             dendrogram_df = self.dendrogram_df
 
         singleton_positions = dendrogram_df.index[dendrogram_df.Singleton]
+
         for current_position in singleton_positions:
             parent_cluster = self.cluster_reference_dict[
                 str(self.hierarchial_clustering_sequence[current_position])
@@ -315,7 +316,7 @@ class Dendrogram:
             elif len(cluster2) > 0:
                 cluster_position = "C2"
             else:
-                "cant find the cluster"
+                ValueError("Unable to find cluster position")
 
             parent_location = self.get_parent_location(current_position)
 
@@ -327,6 +328,8 @@ class Dendrogram:
             elif cluster_position == "C2":
                 x1 = [xy_coords[2][1], longest_x]
                 y1 = [xy_coords[3][1], xy_coords[3][1]]
+            else:
+                ValueError("Unable to find cluster position")
 
             dendrogram_df.loc[current_position]["X1"] = x1
             dendrogram_df.loc[current_position]["Y1"] = y1
@@ -339,6 +342,7 @@ class Dendrogram:
         dendrogram_df=None,
         plot_name=None,
         vertical_line=None,
+        save_image=True,
     ):
         if current_position is not None:
             plot_name = "dendrogram_df_plot_draft.png"
@@ -377,9 +381,10 @@ class Dendrogram:
         if vertical_line is not None:
             ax.axvline(x=vertical_line, color="r")
 
-        plt.savefig(plot_name, bbox_inches="tight")
+        if save_image:
+            plt.savefig(plot_name, bbox_inches="tight")
 
-    def plot_dendrogram_manually(self, current_position):
+    def plot_dendrogram_manually(self, current_position, save_image=True):
         if current_position == 0:
             self.dendrogram_df = self.create_empty_dendo_df()
             self.get_centroid_dist_df()
@@ -411,7 +416,7 @@ class Dendrogram:
 
         self.dendrogram_df.iloc[current_position] = dendrogram_row_calues
 
-        self.plot_dendrogram(current_position)
+        self.plot_dendrogram(current_position, save_image=save_image)
 
         satisfied = input("Are you satisfied with the plot? (y/n): ")
 

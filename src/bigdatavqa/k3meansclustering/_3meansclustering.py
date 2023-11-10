@@ -2,12 +2,11 @@ from math import pi
 
 import cudaq
 import numpy as np
+from cudaq import spin
 from loguru import logger
 from sklearn.cluster import KMeans
-from cudaq import spin
 
-
-from ..coreset import coreset_to_graph, Coreset, normalize_np
+from ..coreset import Coreset, coreset_to_graph, normalize_np
 from ..optimizer import get_optimizer
 from ..vqe_utils import kernel_two_local
 
@@ -48,12 +47,19 @@ def get_3means_cluster_centers_and_cost(
     )
 
     if normalize:
-        coreset_vectors, coreset_weights = normalize_np(
+        coreset_vectors_for_graph, coreset_weights_for_graph = normalize_np(
             coreset_vectors, centralize=centralize
         ), normalize_np(coreset_weights, centralize=centralize)
+    else:
+        coreset_vectors_for_graph, coreset_weights_for_graph = (
+            coreset_vectors,
+            coreset_weights,
+        )
 
     coreset_graph, _ = coreset_to_graph(
-        coreset_vectors, coreset_weights, number_of_qubits_representing_data=2
+        coreset_vectors_for_graph,
+        coreset_weights_for_graph,
+        number_of_qubits_representing_data=2,
     )
 
     cluster_centers = get_3means_clusters_centers(
