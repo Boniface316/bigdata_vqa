@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Tuple, Union
 
 import networkx as nx
 import numpy as np
@@ -13,37 +13,63 @@ class Coreset:
         self,
         data_vectors: np.ndarray,
         number_of_runs: int,
-        coreset_numbers: int,
+        coreset_size: int,
         size_vec_list: int = 100,
-    ):
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        """
+        Generates coreset vectors and weights using the BFL16 algorithm.
+
+        Args:
+            data_vectors (np.ndarray): The input data vectors.
+            number_of_runs (int): The number of runs for the BFL16 algorithm.
+            coreset_size (int): The number of coreset vectors to generate.
+            size_vec_list (int, optional): The size of the vector list. Defaults to 100.
+
+        Returns:
+            Union[List[np.ndarray], List[np.ndarray]]: A list containing the coreset vectors and coreset weights.
+        """
+
         B = self.get_bestB(
             data_vectors=data_vectors,
             number_of_runs=number_of_runs,
-            k=coreset_numbers,
+            coreset_size=coreset_size,
         )
         coreset_vectors, coreset_weights = [None] * size_vec_list, [
             None
         ] * size_vec_list
         for i in range(size_vec_list):
             coreset_vectors[i], coreset_weights[i] = self.BFL16(
-                data_vectors, B=B, m=coreset_numbers
+                data_vectors, B=B, m=coreset_size
             )
 
         return [coreset_vectors, coreset_weights]
 
-    def get_bestB(self, data_vectors: np.ndarray, number_of_runs: int, k: int):
+    def get_bestB(
+        self, data_vectors: np.ndarray, number_of_runs: int, coreset_size: int
+    ) -> np.ndarray:
+        """
+        Returns the best kmeans++ centroids matrix based on the given data vectors, number of runs, and k value.
+
+        Parameters:
+        data_vectors (np.ndarray): The input data vectors.
+        number_of_runs (int): The number of runs to perform.
+        k (int): Coreset size.
+
+        Returns:
+        np.ndarray: The best kmeans++ centroids matrix.
+        """
         bestB, bestB_cost = None, np.inf
 
         # pick B with least error from num_runs runs
         for _ in range(number_of_runs):
-            B = self.Algorithm1(data_vectors, k=k)
+            B = self.D2_sampling(data_vectors, coreset_size=coreset_size)
             cost = self.get_cost(data_vectors, B)
             if cost < bestB_cost:
                 bestB, bestB_cost = B, cost
 
         return bestB
 
-    def Algorithm1(self, data_vectors: np.ndarray, k: int):
+    def D2_sampling(self, data_vectors: np.ndarray, coreset_size: int):
         B = []
         # check if data_vectors is a dataframe. If so, convert it to numpy array
         if isinstance(data_vectors, pd.DataFrame):
@@ -107,7 +133,6 @@ class Coreset:
         coreset_numbers,
         size_vec_list=10,
         use_kmeans_cost=True,
-        sample_size=5,
     ):
         if use_kmeans_cost:
             coreset_vectors, coreset_weights = self.get_coresets(

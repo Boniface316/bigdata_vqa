@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import List, Optional, Tuple
 
 import cudaq
+import networkx as nx
 import numpy as np
 import pandas as pd
 from cudaq import spin
@@ -19,35 +20,65 @@ from ..vqe_utils import kernel_two_local
 
 
 def get_coreset_vec_and_weights(
-    raw_data,
-    number_of_qubits,
-    number_of_centroids_evaluation,
-    number_of_coresets_to_evaluate,
+    raw_data: np.ndarray,
+    number_of_qubits: int,
+    number_of_centroids_evaluation: int,
+    number_of_coresets_to_evaluate: int,
 ):
+    """
+    Get the coreset vectors and weights for divisive clustering.
+
+    Args:
+        raw_data (np.ndarray): The raw data vectors.
+        number_of_qubits (int): The number of qubits for coreset compression.
+        number_of_centroids_evaluation (int): The number of centroids to evaluate.
+        number_of_coresets_to_evaluate (int): The number of coreset vectors to evaluate.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: The coreset vectors and weights.
+    """
     coreset = Coreset()
     return coreset.get_best_coresets(
         data_vectors=raw_data,
         number_of_runs=number_of_centroids_evaluation,
-        coreset_numbers=number_of_qubits,
+        coreset_size=number_of_qubits,
         size_vec_list=number_of_coresets_to_evaluate,
     )
 
 
 def create_hierarchial_cluster(
-    raw_data,
-    number_of_qubits,
-    number_of_centroids_evaluation,
-    number_of_coresets_to_evaluate,
-    max_shots,
-    max_iterations,
-    circuit_depth,
-):
+    raw_data: np.ndarray,
+    number_of_qubits: int,
+    number_of_centroids_evaluation: int,
+    number_of_coresets_to_evaluate: int,
+    max_shots: int = 1000,
+    max_iterations: int = 1000,
+    circuit_depth: int = 1,
+) -> Tuple[List[int], List[np.ndarray]]:
+    """
+    Creates a hierarchical cluster using divisive clustering algorithm.
+
+    Args:
+        raw_data (np.ndarray): The input data for clustering.
+        number_of_qubits (int): The number of qubits to be used in the clustering.
+        number_of_centroids_evaluation (int): The number of centroids to evaluate when creating the coreset.
+        number_of_coresets_to_evaluate (int): The number of coreset vectors to evaluate when creating the coreset.
+        max_shots (int, optional): The maximum number of shots for quantum measurements. Defaults to 1000.
+        max_iterations (int, optional): The maximum number of iterations for the clustering algorithm. Defaults to 1000.
+        circuit_depth (int, optional): The depth of the quantum circuit. Defaults to 1.
+
+    Returns:
+        Tuple[List[int], List[np.ndarray]]: A tuple containing the hierarchical clustering sequence and the coreset vectors and weights.
+
+    """
+
     coreset_vectors, coreset_weights = get_coreset_vec_and_weights(
         raw_data,
         number_of_qubits,
         number_of_centroids_evaluation,
         number_of_coresets_to_evaluate,
     )
+
     index_iteration_counter = 0
     single_clusters = 0
 
@@ -86,7 +117,7 @@ def create_hierarchial_cluster(
                 max_iterations, circuit_depth, qubits
             )
 
-            optimal_expectation, optimal_parameters = cudaq.vqe(
+            _, optimal_parameters = cudaq.vqe(
                 kernel=kernel_two_local(qubits, circuit_depth),
                 spin_operator=Hamiltonian[0],
                 optimizer=optimizer,
@@ -121,21 +152,47 @@ def create_hierarchial_cluster(
     return hierarchial_clustering_sequence, [coreset_vectors, coreset_weights]
 
 
-def get_hierarchial_clustering_sequence(coreset_weights):
-    index_values = [i for i in range(len(coreset_weights))]
-    hioerarchial_clustering_sequence = [index_values]
+def get_hierarchial_clustering_sequence(
+    coreset_weights: np.ndarray,
+) -> Tuple[List, List]:
+    """
+    Returns the index values and the hierarchical clustering sequence for the start
 
-    return index_values, hioerarchial_clustering_sequence
+    Args:
+        coreset_weights (np.ndarray): The weights of the coreset.
+
+    Returns:
+        Tuple[List, List]: A tuple containing the index values and the hierarchical clustering sequence.
+    """
+    index_values = [i for i in range(len(coreset_weights))]
+    hierarchial_clustering_sequence = [index_values]
+
+    return index_values, hierarchial_clustering_sequence
 
 
 def get_hamiltonian_coreset_vector_G(
-    coreset_vectors,
-    coreset_weights,
-    coreset_vector_df,
-    hierarchial_clustering_sequence,
+    coreset_vectors: np.ndarray,
+    coreset_weights: np.ndarray,
+    coreset_vector_df: pd.DataFrame,
+    hierarchial_clustering_sequence: List,
     index_iteration_counter,
     add_identity=False,
-):
+) -> Tuple[cudaq.SpinOperator, pd.DataFrame, nx.Graph]:
+    """
+    Calculates the Hamiltonian, coreset vector for the evaluation and the fully connected weighted graph.
+
+    Args:
+        coreset_vectors (np.ndarray): The coreset vectors.
+        coreset_weights (np.ndarray): The weights of the coreset vectors.
+        coreset_vector_df (pd.DataFrame): The DataFrame containing the coreset vectors.
+        hierarchial_clustering_sequence (List): The hierarchical clustering sequence.
+        index_iteration_counter: The index iteration counter.
+        add_identity (bool, optional): Whether to add identity. Defaults to False.
+
+    Returns:
+        Tuple[cudaq.SpinOperator, pd.DataFrame, nx.Graph]: The Hamiltonian coreset vector G, the DataFrame of coreset vectors to evaluate, and the graph G.
+    """
+
     (
         coreset_vectors_df_to_evaluate,
         index_values_to_evaluate,
@@ -164,9 +221,9 @@ def get_Hamiltonian_variables(
     coreset_weights: np.ndarray,
     index_vals_temp: Optional[int] = None,
     new_df: Optional[pd.DataFrame] = None,
-):
+) -> Tuple[nx.Graph, np.ndarray, int]:
     """
-    Generates the variables required for Hamiltonian
+    Generates the variables required to create the Hamiltonian
 
     Args:
         coreset_vectors: Coreset vectors
@@ -189,8 +246,8 @@ def get_Hamiltonian_variables(
 
 
 def create_Hamiltonian_for_K2(
-    G, qubits, weights: np.ndarray = None, add_identity=False
-):
+    G: nx.Graph, qubits: int, weights: np.ndarray = None, add_identity=False
+) -> cudaq.SpinOperator:
     """
     Generate Hamiltonian for k=2
 
@@ -201,12 +258,12 @@ def create_Hamiltonian_for_K2(
         add_identity: Add identiy or not. Defaults to False.
 
     Returns:
-        _type_: _description_
+        Hamiltonian
     """
     H = 0
 
     for i, j in G.edges():
-        weight = G[i][j]["weight"]  # [0]
+        weight = G[i][j]["weight"]
         H += weight * (spin.z(i) * spin.z(j))
 
     return H
