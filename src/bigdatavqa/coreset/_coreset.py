@@ -21,7 +21,7 @@ class Coreset:
 
         Args:
             data_vectors (np.ndarray): The input data vectors.
-            number_of_runs (int): The number of runs for the BFL16 algorithm.
+            number_of_runs (int): The number of runs for the D2 samplings to create centroids.
             coreset_size (int): The number of coreset vectors to generate.
             size_vec_list (int, optional): The size of the vector list. Defaults to 100.
 
@@ -29,7 +29,7 @@ class Coreset:
             Union[List[np.ndarray], List[np.ndarray]]: A list containing the coreset vectors and coreset weights.
         """
 
-        B = self.get_bestB(
+        centroids = self.get_best_centroids(
             data_vectors=data_vectors,
             number_of_runs=number_of_runs,
             coreset_size=coreset_size,
@@ -39,16 +39,18 @@ class Coreset:
         ] * size_vec_list
         for i in range(size_vec_list):
             coreset_vectors[i], coreset_weights[i] = self.BFL16(
-                data_vectors, B=B, m=coreset_size
+                data_vectors=data_vectors,
+                centroids=centroids,
+                coreset_size=coreset_size,
             )
 
         return [coreset_vectors, coreset_weights]
 
-    def get_bestB(
+    def get_best_centroids(
         self, data_vectors: np.ndarray, number_of_runs: int, coreset_size: int
-    ) -> np.ndarray:
+    ) -> List[np.ndarray]:
         """
-        Returns the best kmeans++ centroids matrix based on the given data vectors, number of runs, and k value.
+        Returns the best kmeans++ centroids matrix based on the given data vectors, number of runs, and coreset_size value.
 
         Parameters:
         data_vectors (np.ndarray): The input data vectors.
@@ -58,16 +60,16 @@ class Coreset:
         Returns:
         np.ndarray: The best kmeans++ centroids matrix.
         """
-        bestB, bestB_cost = None, np.inf
+        best_centroid_coordinates, best_centroid_cost = None, np.inf
 
         # pick B with least error from num_runs runs
         for _ in range(number_of_runs):
-            B = self.D2_sampling(data_vectors, coreset_size=coreset_size)
-            cost = self.get_cost(data_vectors, B)
-            if cost < bestB_cost:
-                bestB, bestB_cost = B, cost
+            centroids = self.D2_sampling(data_vectors, coreset_size=coreset_size)
+            cost = self.get_cost(data_vectors, centroids)
+            if cost < best_centroid_cost:
+                best_centroid_coordinates, best_centroid_cost = centroids, cost
 
-        return bestB
+        return best_centroid_coordinates
 
     def D2_sampling(self, data_vectors: np.ndarray, coreset_size: int):
         B = []
@@ -76,7 +78,7 @@ class Coreset:
             data_vectors = data_vectors.to_numpy()
         B.append(data_vectors[np.random.choice(len(data_vectors))])
 
-        for _ in range(k - 1):
+        for _ in range(coreset_size - 1):
             p = np.zeros(len(data_vectors))
             for i, x in enumerate(data_vectors):
                 p[i] = self.dist_to_B(x, B) ** 2
@@ -103,40 +105,44 @@ class Coreset:
             return min_dist, closest_index
         return min_dist
 
-    def BFL16(self, P, B, m):
-        num_points_in_clusters = {i: 0 for i in range(len(B))}
+    def BFL16(self, data_vectors, centroids, coreset_size):
+        num_points_in_clusters = {i: 0 for i in range(len(centroids))}
         sum_distance_to_closest_cluster = 0
-        for p in P:
-            min_dist, closest_index = self.dist_to_B(p, B, return_closest_index=True)
+        for p in data_vectors:
+            min_dist, closest_index = self.dist_to_B(
+                p, centroids, return_closest_index=True
+            )
             num_points_in_clusters[closest_index] += 1
             sum_distance_to_closest_cluster += min_dist**2
 
-        Prob = np.zeros(len(P))
-        for i, p in enumerate(P):
-            min_dist, closest_index = self.dist_to_B(p, B, return_closest_index=True)
+        Prob = np.zeros(len(data_vectors))
+        for i, p in enumerate(data_vectors):
+            min_dist, closest_index = self.dist_to_B(
+                p, centroids, return_closest_index=True
+            )
             Prob[i] += min_dist**2 / (2 * sum_distance_to_closest_cluster)
-            Prob[i] += 1 / (2 * len(B) * num_points_in_clusters[closest_index])
+            Prob[i] += 1 / (2 * len(centroids) * num_points_in_clusters[closest_index])
 
         assert 0.999 <= sum(Prob) <= 1.001, (
             "sum(Prob) = %s; the algorithm should automatically "
             "normalize Prob by construction" % sum(Prob)
         )
-        chosen_indices = np.random.choice(len(P), size=m, p=Prob)
-        weights = [1 / (m * Prob[i]) for i in chosen_indices]
+        chosen_indices = np.random.choice(len(data_vectors), size=coreset_size, p=Prob)
+        weights = [1 / (coreset_size * Prob[i]) for i in chosen_indices]
 
-        return [P[i] for i in chosen_indices], weights
+        return [data_vectors[i] for i in chosen_indices], weights
 
     def get_best_coresets(
         self,
         data_vectors,
         number_of_runs,
-        coreset_numbers,
+        coreset_size,
         size_vec_list=10,
         use_kmeans_cost=True,
     ):
         if use_kmeans_cost:
             coreset_vectors, coreset_weights = self.get_coresets(
-                data_vectors, number_of_runs, coreset_numbers, size_vec_list
+                data_vectors, number_of_runs, coreset_size, size_vec_list
             )
 
             coreset_vectors, coreset_weights = self.best_coreset_using_kmeans_cost(
@@ -146,11 +152,11 @@ class Coreset:
             B = self.get_bestB(
                 data_vectors=data_vectors,
                 number_of_runs=number_of_runs,
-                k=coreset_numbers,
+                k=coreset_size,
             )
 
             coreset_vectors, coreset_weights = self.Algorithm2(
-                data_vectors, B, coreset_numbers
+                data_vectors, B, coreset_size
             )
 
         return np.array(coreset_vectors), np.array(coreset_weights)
