@@ -2,7 +2,7 @@
 
 Authors: [Boniface Yogendran](https://github.com/Boniface316), [Daniel Charlton](https://github.com/DanLeeC), [Miriam Beddig](https://github.com/12mB7693), [Ioannis Kolotouros](https://github.com/greater) and [Dr. Petros Wallden](http://www.pwallden.gr/)
 
-This repository contains the code and data required to reproduce the results presented in the paper titled "Big Data Small Quantum Computer." The paper is available on arXiv: [arXiv:2402.01529](https://arxiv.org/abs/2305.13594).
+This repository contains the code and data required to reproduce the results presented in the paper titled "Big Data Small Quantum Computer." The paper is available on arXiv: [arXiv:2402.01529](https://arxiv.org/abs/2402.01529).
 
 There are three algorithms presented in the paper, each with its own notebook in the `notebooks` directory. The notebooks are as follows:
 
