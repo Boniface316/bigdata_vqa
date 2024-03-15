@@ -14,7 +14,7 @@ class Coreset:
         data_vectors: np.ndarray,
         number_of_runs: int,
         coreset_size: int,
-        size_vec_list: int = 100,
+        number_of_coresets_to_evaluate: int = 100,
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Generates coreset vectors and weights using the BFL16 algorithm.
@@ -23,7 +23,7 @@ class Coreset:
             data_vectors (np.ndarray): The input data vectors.
             number_of_runs (int): The number of runs for the D2 samplings to create centroids.
             coreset_size (int): The number of coreset vectors to generate.
-            size_vec_list (int, optional): The size of the vector list. Defaults to 100.
+            number_of_coresets_to_evaluate (int, optional): The size of the vector list. Defaults to 100.
 
         Returns:
             Union[List[np.ndarray], List[np.ndarray]]: A list containing the coreset vectors and coreset weights.
@@ -34,10 +34,10 @@ class Coreset:
             number_of_runs=number_of_runs,
             coreset_size=coreset_size,
         )
-        coreset_vectors, coreset_weights = [None] * size_vec_list, [
+        coreset_vectors, coreset_weights = [None] * number_of_coresets_to_evaluate, [
             None
-        ] * size_vec_list
-        for i in range(size_vec_list):
+        ] * number_of_coresets_to_evaluate
+        for i in range(number_of_coresets_to_evaluate):
             coreset_vectors[i], coreset_weights[i] = self.BFL16(
                 data_vectors=data_vectors,
                 centroids=centroids,
@@ -137,22 +137,25 @@ class Coreset:
         data_vectors,
         number_of_runs,
         coreset_size,
-        size_vec_list=10,
+        number_of_coresets_to_evaluate=10,
         use_kmeans_cost=True,
     ):
         if use_kmeans_cost:
             coreset_vectors, coreset_weights = self.get_coresets(
-                data_vectors, number_of_runs, coreset_size, size_vec_list
+                data_vectors,
+                number_of_runs,
+                coreset_size,
+                number_of_coresets_to_evaluate,
             )
 
             coreset_vectors, coreset_weights = self.best_coreset_using_kmeans_cost(
                 data_vectors, coreset_vectors, coreset_weights
             )
         else:
-            B = self.get_bestB(
+            B = self.get_best_centroids(
                 data_vectors=data_vectors,
                 number_of_runs=number_of_runs,
-                k=coreset_size,
+                coreset_size=coreset_size,
             )
 
             coreset_vectors, coreset_weights = self.Algorithm2(
@@ -340,28 +343,24 @@ def generate_graph_instance(coreset):
     return coreset
 
 
-def get_cv_cw(cv: np.ndarray, cw: np.ndarray, idx_vals: int, normalize=True):
-    """
-    Get the coreset vector and weights from index value of the hierarchy
+def get_iteration_coreset_vectors_and_weights(
+    index_values_to_evaluate,
+    initial_coreset_vectors,
+    initial_coreset_weights,
+    normalize=True,
+):
 
-    Args:
-        cv: Coreset vectors
-        cw: coreset weights
-        idx_vals: Index value in the hierarchy
-        normalize: normalize the cv and cw or not
-
-    Returns:
-        coreset vectors and weights
-    """
-
-    cw = cw[idx_vals]
-    cv = cv[idx_vals]
+    coreset_weights_for_iteration = initial_coreset_weights[index_values_to_evaluate]
+    coreset_vectors_for_iteration = initial_coreset_vectors[index_values_to_evaluate]
 
     if normalize:
-        cv = normalize_np(cv, True)
-        cw = normalize_np(cw)
 
-    return cw, cv
+        coreset_vectors_for_iteration = normalize_np(
+            coreset_vectors_for_iteration, True
+        )
+        coreset_weights_for_iteration = normalize_np(coreset_weights_for_iteration)
+
+    return coreset_vectors_for_iteration, coreset_weights_for_iteration
 
 
 def normalize_np(cv: np.ndarray, centralize=False):
@@ -386,16 +385,6 @@ def normalize_np(cv: np.ndarray, centralize=False):
     cv_norm = cv_pd.to_numpy()
 
     return cv_norm
-
-
-def get_coreset_vector_df(coreset_vectors: np.ndarray, index_iteration_counter):
-    coreset_vectors_df = pd.DataFrame(coreset_vectors, columns=list("XY"))
-
-    coreset_vectors_df["Name"] = [
-        chr(index_iteration_counter + 65) for i in coreset_vectors_df.index
-    ]
-
-    return coreset_vectors_df
 
 
 def get_coreset_vectors_to_evaluate(
