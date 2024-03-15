@@ -125,24 +125,21 @@ def get_divisive_cluster_cost(dendo, hc, centroid_coords):
 
             new_df = dendo.coreset_data.iloc[index_vals_temp]
 
-            child_1_str = str(child_1)
-            child_2_str = str(child_2)
+            child_1_str_list = [str_val for str_val in child_1]
 
             new_df["cluster"] = 0
-            new_df.loc[child_1, "cluster"] = 1
+            new_df.loc[new_df.name.isin(child_1_str_list), "cluster"] = 1
 
             cost = 0
 
             for idx, row in new_df.iterrows():
                 if row.cluster == 0:
                     cost += (
-                        np.linalg.norm(row[["X", "Y"]] - centroid_coords[child_1_str])
-                        ** 2
+                        np.linalg.norm(row[["X", "Y"]] - centroid_coords[child_1]) ** 2
                     )
                 else:
                     cost += (
-                        np.linalg.norm(row[["X", "Y"]] - centroid_coords[child_2_str])
-                        ** 2
+                        np.linalg.norm(row[["X", "Y"]] - centroid_coords[child_2]) ** 2
                     )
 
             cost_list.append(cost)

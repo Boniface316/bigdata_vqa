@@ -38,7 +38,9 @@ class Dendrogram:
 
     def get_centroid_dist_df(self):
         centroids = self.get_centroid_coords(
-            self.hierarchial_clustering_sequence, self.coreset_data
+            self.hierarchial_clustering_sequence,
+            self.coreset_data,
+            convert_to_str=False,
         )
         centroids_df = self.get_centroid_dist(centroids)
         centdoids_distance_df = self.rename_cols_rows(centroids_df, self.coreset_data)
@@ -48,7 +50,10 @@ class Dendrogram:
         return centdoids_distance_df
 
     def get_centroid_coords(
-        self, hierarchial_clustering_sequence=None, coreset_data=None
+        self,
+        hierarchial_clustering_sequence=None,
+        coreset_data=None,
+        convert_to_str=True,
     ):
         if hierarchial_clustering_sequence is None:
             hierarchial_clustering_sequence = self.hierarchial_clustering_sequence
@@ -58,11 +63,15 @@ class Dendrogram:
         coreset_data = coreset_data[["X", "Y"]]
 
         for posn in hierarchial_clustering_sequence:
+
             if isinstance(posn[0], str):
                 posn = [ord(c) - ord("A") for c in posn]
             coreset_data_selected = coreset_data.iloc[posn]
 
             centroid = np.mean(coreset_data_selected.to_numpy(), axis=0)
+
+            if convert_to_str and isinstance(posn[0], int):
+                posn = "".join(chr(65 + int(i)) for i in posn)
 
             centroids.update({str(posn): centroid})
 
@@ -364,8 +373,9 @@ class Dendrogram:
         for idx, plot_data in dendrogram_df.iterrows():
             x1, y1, x2, y2, vx, vy, C1, C2, Parent, Singleton = plot_data
             if Singleton:
+                plt.annotate(Parent, (longest_x + longest_x / 50, y1[0]), fontsize=15)
                 plt.plot(x1, y1, color="black", marker=" ")
-                ax.annotate(Parent, (longest_x + 0.2, y1[0]), fontsize=10)
+
             else:
                 if idx == len(dendrogram_df) - 1:
                     posn_1 = (x1[1], y1[1])
@@ -375,6 +385,8 @@ class Dendrogram:
 
                 plt.plot(x1, y1, x2, y2, vx, vy, color="black", marker=" ")
         ax.set_yticklabels([])
+        ax.tick_params(axis="x", labelsize=20)  # Set font size for x-axis
+
         ax.spines["right"].set_visible(False)
         ax.spines["top"].set_visible(False)
 
@@ -382,7 +394,7 @@ class Dendrogram:
             ax.axvline(x=vertical_line, color="r")
 
         if save_image:
-            plt.savefig(plot_name, bbox_inches="tight")
+            plt.savefig(plot_name, bbox_inches="tight", pad_inches=1)
 
     def plot_dendrogram_manually(self, current_position, save_image=True):
         if current_position == 0:
@@ -406,7 +418,7 @@ class Dendrogram:
         buffer_1 = int(buffer_1)
         buffer_2 = int(buffer_2)
 
-        dendrogram_row_calues = self.get_row_values_for_dendrogram(
+        dendrogram_row_values = self.get_row_values_for_dendrogram(
             current_position,
             x_start,
             y_start,
@@ -414,7 +426,7 @@ class Dendrogram:
             buffer_2,
         )
 
-        self.dendrogram_df.iloc[current_position] = dendrogram_row_calues
+        self.dendrogram_df.iloc[current_position] = dendrogram_row_values
 
         self.plot_dendrogram(current_position, save_image=save_image)
 

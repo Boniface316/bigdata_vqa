@@ -155,6 +155,7 @@ def brute_force_cost_2(bitstrings: list, G: nx.graph):
             aj = int(aj)
 
             weight_val = 1 * G[i][j]["weight"]
+
             c += cost_func_2(ai, aj, weight_val)
 
         cost_val.update({bitstring: c})
@@ -222,4 +223,5 @@ def cost_func_2(a_i: int, a_j: int, weight_val: float):
     """
 
     val = -1 * weight_val * (1 - ((-1) ** a_i) * ((-1) ** a_j))  # MaxCut equation
+
     return val
