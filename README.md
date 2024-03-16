@@ -4,6 +4,7 @@ Authors: [Boniface Yogendran](https://github.com/Boniface316), [Daniel Charlton]
 
 This repository contains the code and data required to reproduce the results presented in the paper titled "Big Data Small Quantum Computer." The paper is available on arXiv: [arXiv:2402.01529](https://arxiv.org/abs/2402.01529).
 
+
 There are three algorithms presented in the paper, each with its own notebook in the `notebooks` directory. The notebooks are as follows:
 
 1. 3-means Clustering

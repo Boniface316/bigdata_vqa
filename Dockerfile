@@ -18,8 +18,6 @@ RUN pip install jupyterthemes && \
     echo "jupyter notebook --ip='0.0.0.0' --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''" > /workspace/start_jupyter.sh && \
     chmod +x /workspace/start_jupyter.sh 
 
-COPY .zshrc /root/.zshrc
-
 EXPOSE 8888 3000
 
 CMD ["./start_jupyter.sh","--allow-root"]

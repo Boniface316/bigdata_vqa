@@ -22,8 +22,8 @@ def get_coreset_vec_and_weights(
     return coreset.get_best_coresets(
         data_vectors=raw_data,
         number_of_runs=number_of_centroids_evaluation,
-        coreset_numbers=coreset_size,
-        size_vec_list=number_of_coresets_to_evaluate,
+        coreset_size=coreset_size,
+        number_of_coresets_to_evaluate=number_of_coresets_to_evaluate,
         use_kmeans_cost=False,
     )
 

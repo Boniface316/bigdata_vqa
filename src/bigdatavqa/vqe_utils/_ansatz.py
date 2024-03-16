@@ -19,3 +19,27 @@ def kernel_two_local(number_of_qubits, circuit_depth) -> cudaq.Kernel:
             theta_position += 4
 
     return kernel
+
+
+def create_Hamiltonian_for_K2(
+    G: nx.Graph, qubits: int, weights: np.ndarray = None, add_identity=False
+) -> cudaq.SpinOperator:
+    """
+    Generate Hamiltonian for k=2
+
+    Args:
+        G: Problem as a graph
+        weights: Edge weights
+        nodes: nodes of the graph
+        add_identity: Add identiy or not. Defaults to False.
+
+    Returns:
+        Hamiltonian
+    """
+    H = 0
+
+    for i, j in G.edges():
+        weight = G[i][j]["weight"]
+        H += weight * (spin.z(i) * spin.z(j))
+
+    return H[0]
