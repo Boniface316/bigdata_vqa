@@ -105,12 +105,16 @@ class Coreset:
         centroids = self.get_best_centroids()
 
         if self._coreset_method == "BFL16":
+            print("Using BFL16 method to generate coresets")
             coreset_vectors, coreset_weights = self.get_coresets_using_BFL16(centroids)
 
-        else:
+        elif self._coreset_method == "Algorithm2":
+            print("Using Algorithm2 method to generate coresets")
             coreset_vectors, coreset_weights = self.get_coresets_using_Algorithm2(
                 centroids
             )
+        else:
+            raise ValueError("Coreset method must be either BFL16 or Algorithm2.")
 
         coreset_vectors, coreset_weights = self.best_coreset_using_kmeans_cost(
             coreset_vectors, coreset_weights
