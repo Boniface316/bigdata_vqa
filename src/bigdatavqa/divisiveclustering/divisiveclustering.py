@@ -7,12 +7,7 @@ import pandas as pd
 from cudaq import spin
 from loguru import logger
 
-from ..coreset import (
-    Coreset,
-    coreset_to_graph,
-    get_coreset_vectors_to_evaluate,
-    get_iteration_coreset_vectors_and_weights,
-)
+from ..coreset import Coreset, coreset_to_graph
 from ..optimizer import get_optimizer
 from ..postexecution import add_children_to_hierachial_clustering, get_best_bitstring
 from ..vqe_utils import create_Hamiltonian_for_K2, kernel_two_local
@@ -165,3 +160,23 @@ def create_hierarchial_cluster(
     )
 
     return hierarchial_clustering_sequence, [coreset_vectors, coreset_weights]
+
+
+def get_iteration_coreset_vectors_and_weights(
+    index_values_to_evaluate,
+    initial_coreset_vectors,
+    initial_coreset_weights,
+    normalize=True,
+):
+
+    coreset_weights_for_iteration = initial_coreset_weights[index_values_to_evaluate]
+    coreset_vectors_for_iteration = initial_coreset_vectors[index_values_to_evaluate]
+
+    if normalize:
+
+        coreset_vectors_for_iteration = normalize_array(
+            coreset_vectors_for_iteration, True
+        )
+        coreset_weights_for_iteration = normalize_array(coreset_weights_for_iteration)
+
+    return coreset_vectors_for_iteration, coreset_weights_for_iteration
