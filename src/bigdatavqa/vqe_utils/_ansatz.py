@@ -1,4 +1,6 @@
 import cudaq
+import networkx as nx
+import numpy as np
 
 
 def kernel_two_local(number_of_qubits, circuit_depth) -> cudaq.Kernel:

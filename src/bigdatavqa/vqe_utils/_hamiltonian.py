@@ -1,9 +1,10 @@
 import cudaq
 import networkx as nx
 import numpy as np
+from cudaq import spin
 
 
-def create_Hamiltonian_for_K2(G: nx.Graph) -> cudaq.SpinOperator:
+def get_K2_Hamiltonian(G: nx.Graph) -> cudaq.SpinOperator:
     """
     Generate Hamiltonian for k=2
 

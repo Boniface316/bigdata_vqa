@@ -29,12 +29,14 @@ def _crearte_bitstring_probs_df(all_bitstrings, counts, sort_values: bool = True
     return df
 
 
-def get_best_bitstring(counts, qubits, G):
-    bitstring_probability_df = get_probs_table(counts, qubits)
-    # get 50% of the bitstring_probability_df
-    bitstring_probability_df = bitstring_probability_df.head(
-        int(len(bitstring_probability_df) / 2)
-    )
+def get_best_bitstring(counts, G, threshold=0.5):
+    bitstring_probability_df = get_probs_table(counts, len(G.nodes))
+    # get top percentage of the bitstring_probability_df
+    if len(bitstring_probability_df) > 100:
+        selected_rows = int(len(bitstring_probability_df) * threshold)
+    else:
+        selected_rows = int(len(bitstring_probability_df) / 2)
+    bitstring_probability_df = bitstring_probability_df.head(selected_rows)
 
     bitstrings = bitstring_probability_df["bitstring"].tolist()
 
@@ -100,7 +102,7 @@ def bitstring_cost_using_maxcut(bitstring: str, i, j, edge_weight):
     ai = int(bitstring[i])
     aj = int(bitstring[j])
 
-    edge_weight = edge_weight[0]
+    edge_weight = edge_weight
 
     val = -1 * edge_weight * (1 - ((-1) ** ai) * ((-1) ** aj))  # MaxCut equation
     return val
