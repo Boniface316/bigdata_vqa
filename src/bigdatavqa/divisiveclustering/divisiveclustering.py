@@ -13,14 +13,22 @@ from tqdm import tqdm
 
 from ..coreset import Coreset
 from ..optimizer import get_optimizer
-from ..postexecution import add_children_to_hierachial_clustering, get_best_bitstring
 from ..vqe_utils import get_K2_Hamiltonian, kernel_two_local
+from .dendrogram import Dendrogram
 
 
 class DivisiveClustering(ABC):
     @abstractmethod
     def run_divisive_clustering(self, coreset_vectors_df_for_iteration: pd.DataFrame):
         pass
+
+    def get_hierarchical_clustering_sequence(
+        self, coreset_vectors_df_for_iteration, hierarchial_sequence
+    ):
+        bitstring = self.run_divisive_clustering(coreset_vectors_df_for_iteration)
+        return self._add_children_to_hierarchial_clustering(
+            coreset_vectors_df_for_iteration, hierarchial_sequence, bitstring
+        )
 
     def _get_iteration_coreset_vectors_and_weights(
         self, coreset_vectors_df_for_iteration
@@ -77,75 +85,62 @@ class DivisiveClustering(ABC):
             bitstrings.append(bin(i)[2:].zfill(len(G.nodes)))
         return bitstrings
 
+    def _add_children_to_hierarchial_clustering(
+        self,
+        iteration_dataframe: pd.DataFrame,
+        hierarchial_sequence: list,
+        bitstring: str,
+    ):
 
-def get_divisive_sequence(
-    full_coreset_df: pd.DataFrame, divisive_clustering_function: Callable
-) -> List:
-    """
-    Creates a hierarchical cluster using divisive clustering algorithm.
+        iteration_dataframe["cluster"] = [int(bit) for bit in bitstring]
 
-    Args:
-        raw_data (np.ndarray): The input data for clustering.
-        number_of_qubits (int): The number of qubits to be used in the clustering.
-        number_of_centroids_evaluation (int): The number of centroids to evaluate when creating the coreset.
-        number_of_coresets_to_evaluate (int): The number of coreset vectors to evaluate when creating the coreset.
-        max_shots (int, optional): The maximum number of shots for quantum measurements. Defaults to 1000.
-        max_iterations (int, optional): The maximum number of iterations for the clustering algorithm. Defaults to 1000.
-        circuit_depth (int, optional): The depth of the quantum circuit. Defaults to 1.
+        for j in range(2):
+            idx = list(iteration_dataframe[iteration_dataframe["cluster"] == j].index)
+            if len(idx) > 0:
+                hierarchial_sequence.append(idx)
 
-    Returns:
-        Tuple[List[int], List[np.ndarray]]: A tuple containing the hierarchical clustering sequence and the coreset vectors and weights.
+        return hierarchial_sequence
 
-    """
-
-    index_iteration_counter = 0
-    single_clusters = 0
-
-    index_values = list(range(len(full_coreset_df)))
-    hierarchial_clustering_sequence = [index_values]
-
-    # variables = ["full_coreset_pd"]
-
-    # if clustering_method == "vqe":
-    #     divisive_clustering_function = _divisive_clustering_using_vqe
-    #     variables.extend(["circuit_depth", "max_iterations", "max_shots"])
-    # elif clustering_method == "random":
-    #     divisive_clustering_function = _divisive_clustering_using_random
-    # elif clustering_method == "kmeans":
-    #     divisive_clustering_function = _divisive_clustering_using_kmeans
-    # elif clustering_method == "maxcut":
-    #     divisive_clustering_function = _divisive_clustering_using_maxcut
-    # else:
-    #     raise ValueError("Method not found")
-
-    # self._check_variables(variables, clustering_method)
-
-    while single_clusters < len(index_values):
-        index_values_to_evaluate = hierarchial_clustering_sequence[
-            index_iteration_counter
-        ]
-        if len(index_values_to_evaluate) == 1:
-            single_clusters += 1
-        else:
-            coreset_vectors_df_for_iteration = full_coreset_df.iloc[
-                index_values_to_evaluate
-            ]
-
-            bitstring = divisive_clustering_function.run_divisive_clustering(
-                coreset_vectors_df_for_iteration
+    @staticmethod
+    def get_divisive_cluster_cost(hierarchical_clustering_sequence, coreset_data):
+        coreset_data = coreset_data.drop(["Name", "weights"], axis=1)
+        cost_list = []
+        for parent in hierarchical_clustering_sequence:
+            children_lst = Dendrogram.find_children(
+                parent, hierarchical_clustering_sequence
             )
 
-            print(bitstring)
+            if not children_lst:
+                continue
+            else:
+                children_1, children_2 = children_lst
 
-            hierarchial_clustering_sequence = add_children_to_hierachial_clustering(
-                coreset_vectors_df_for_iteration,
-                hierarchial_clustering_sequence,
-                bitstring,
-            )
+                parent_data_frame = coreset_data.iloc[parent]
 
-        index_iteration_counter += 1
+                parent_data_frame["cluster"] = 0
 
-    return hierarchial_clustering_sequence
+                parent_data_frame.loc[children_2, "cluster"] = 1
+
+                cost = 0
+
+                centroid_coords = parent_data_frame.groupby("cluster").mean()[
+                    ["X", "Y"]
+                ]
+                centroid_coords = centroid_coords.to_numpy()
+
+                for idx, row in parent_data_frame.iterrows():
+                    if row.cluster == 0:
+                        cost += (
+                            np.linalg.norm(row[["X", "Y"]] - centroid_coords[0]) ** 2
+                        )
+                    else:
+                        cost += (
+                            np.linalg.norm(row[["X", "Y"]] - centroid_coords[1]) ** 2
+                        )
+
+                cost_list.append(cost)
+
+        return cost_list
 
 
 class DivisiveClusteringVQE(DivisiveClustering):
@@ -299,7 +294,7 @@ class DivisiveClusteringVQE(DivisiveClustering):
     def _get_best_bitstring(self, counts, G):
         all_bitstrings = self._create_all_possible_bitstrings(G)
         bitstring_probability_df = self._convert_counts_to_probability_table(
-            all_bitstrings, counts, self._sort_by_descending
+            all_bitstrings, counts
         )
         # get top percentage of the bitstring_probability_df
         if len(bitstring_probability_df) > 100:
@@ -351,7 +346,7 @@ class DivisiveClusteringKMeans(DivisiveClustering):
     def run_divisive_clustering(self, coreset_vectors_df_for_iteration: pd.DataFrame):
         if len(coreset_vectors_df_for_iteration) > 2:
             coreset_vectors_df_for_iteration = coreset_vectors_df_for_iteration.drop(
-                "name", axis=1
+                "Name", axis=1
             )
             X = coreset_vectors_df_for_iteration.to_numpy()
             kmeans = KMeans(n_clusters=2, random_state=None).fit(X)
@@ -406,3 +401,47 @@ class DivisiveClusteringMaxCut(DivisiveClustering):
         max_bitstring = brute_force_bitstring_cost.index[0]
 
         return [int(bit) for bit in max_bitstring]
+
+
+def get_divisive_sequence(
+    full_coreset_df: pd.DataFrame, divisive_clustering_function: Callable
+) -> List:
+
+    index_iteration_counter = 0
+    single_clusters = 0
+
+    index_values = list(range(len(full_coreset_df)))
+    hierarchial_clustering_sequence = [index_values]
+
+    while single_clusters < len(index_values):
+        index_values_to_evaluate = hierarchial_clustering_sequence[
+            index_iteration_counter
+        ]
+        if len(index_values_to_evaluate) == 1:
+            single_clusters += 1
+        else:
+            coreset_vectors_df_for_iteration = full_coreset_df.iloc[
+                index_values_to_evaluate
+            ]
+
+            # bitstring = divisive_clustering_function.run_divisive_clustering(
+            #     coreset_vectors_df_for_iteration
+            # )
+
+            # print(bitstring)
+
+            # hierarchial_clustering_sequence = _add_children_to_hierachial_clustering(
+            #     coreset_vectors_df_for_iteration,
+            #     hierarchial_clustering_sequence,
+            #     bitstring,
+            # )
+
+            hierarchial_clustering_sequence = (
+                divisive_clustering_function.get_hierarchical_clustering_sequence(
+                    coreset_vectors_df_for_iteration, hierarchial_clustering_sequence
+                )
+            )
+
+        index_iteration_counter += 1
+
+    return hierarchial_clustering_sequence
