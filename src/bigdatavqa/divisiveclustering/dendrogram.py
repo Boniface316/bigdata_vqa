@@ -38,8 +38,9 @@ class Dendrogram:
         return self.linkage_matrix
 
     def __create_coreset_data(self, coreset_data):
-        coreset_data.index = coreset_data.Name
-        return coreset_data.drop(columns=["Name", "weights"])
+        _coreset_data = coreset_data.copy()
+        _coreset_data.index = _coreset_data.Name
+        return _coreset_data.drop(columns=["Name", "weights"])
 
     def __convert_numbers_to_name(self, hc_data, coreset_data):
         converted_hc = []

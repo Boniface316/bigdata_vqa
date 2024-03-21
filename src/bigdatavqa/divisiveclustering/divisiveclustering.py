@@ -424,18 +424,6 @@ def get_divisive_sequence(
                 index_values_to_evaluate
             ]
 
-            # bitstring = divisive_clustering_function.run_divisive_clustering(
-            #     coreset_vectors_df_for_iteration
-            # )
-
-            # print(bitstring)
-
-            # hierarchial_clustering_sequence = _add_children_to_hierachial_clustering(
-            #     coreset_vectors_df_for_iteration,
-            #     hierarchial_clustering_sequence,
-            #     bitstring,
-            # )
-
             hierarchial_clustering_sequence = (
                 divisive_clustering_function.get_hierarchical_clustering_sequence(
                     coreset_vectors_df_for_iteration, hierarchial_clustering_sequence

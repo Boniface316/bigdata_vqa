@@ -1,72 +1,72 @@
-import cudaq
-import numpy as np
 import pandas as pd
-from cudaq import spin
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
-from bigdatavqa.coreset import Coreset, coreset_to_graph, normalize_np
+from bigdatavqa.coreset import Coreset
 from bigdatavqa.datautils import DataUtils
-from bigdatavqa.divisiveclustering import Dendrogram, create_hierarchial_cluster
-from bigdatavqa.divisiveclustering.bruteforce import (
-    perform_bruteforce_divisive_clustering,
+from bigdatavqa.divisiveclustering import (
+    Dendrogram,
+    DivisiveClusteringKMeans,
+    DivisiveClusteringMaxCut,
+    DivisiveClusteringRandom,
+    DivisiveClusteringVQE,
+    get_divisive_sequence,
 )
-from bigdatavqa.postexecution import get_divisive_cluster_cost
 
-qubits = 5
+number_of_qubits = 10
 circuit_depth = 1
-max_shots = 100
-max_iterations = 10
-number_of_experiment_runs = 5
+max_shots = 1000
+max_iterations = 100
+data_location = "data"
+number_of_coresets_to_evaluate = 1
+number_of_sampling_for_centroids = 2
+threshold_for_max_cut = 0.2
 
-number_of_corsets_to_evaluate = 15
-number_of_centroid_evaluation = 20
-
-data_utils = DataUtils("data")
+data_utils = DataUtils(data_location)
 raw_data = data_utils.load_dataset()
 
-parameter_count = 4 * circuit_depth * (qubits - 1)
-
-optimizer = cudaq.optimizers.COBYLA()
-optimizer.initial_parameters = np.random.uniform(
-    -np.pi / 8.0, np.pi / 8.0, parameter_count
+coreset = Coreset(
+    raw_data,
+    number_of_sampling_for_centroids,
+    number_of_qubits,
+    number_of_coresets_to_evaluate,
 )
-optimizer.max_iterations = max_iterations
+coreset_vectors, coreset_weights = coreset.get_best_coresets()
 
-coreset = Coreset()
-coreset_vectors, coreset_weights = coreset.get_best_coresets(
-    data_vectors=raw_data,
-    number_of_runs=number_of_centroid_evaluation,
-    coreset_size=qubits,
-    number_of_coresets_to_evaluate=number_of_corsets_to_evaluate,
-)
 
-G, weights = coreset_to_graph(coreset_vectors, coreset_weights, metric="dot")
+coreset_df = pd.DataFrame(coreset_vectors, columns=list("XY"))
+coreset_df["weights"] = coreset_weights
+coreset_df["Name"] = [chr(i + 65) for i in coreset_df.index]
+coreset_df
 
-H = 0
 
-for i, j in G.edges():
-    weight = G[i][j]["weight"]
-    H += weight * (spin.z(i) * spin.z(j))
+# divisive_clustering_function = DivisiveClusteringVQE(
+#     circuit_depth=circuit_depth,
+#     max_iterations=max_iterations,
+#     max_shots=max_shots,
+#     threshold_for_max_cut=threshold_for_max_cut,
+# )
 
-kernel, thetas = cudaq.make_kernel(list)
-qreg = kernel.qalloc(qubits)
+# hierrachial_sequence = get_divisive_sequence(coreset_df, divisive_clustering_function)
 
-# Loop over the layers
-theta_position = 0
+# print(hierrachial_sequence)
 
-for i in range(circuit_depth):
-    for j in range(1, qubits):
-        kernel.rz(thetas[theta_position], qreg[j % qubits])
-        kernel.rx(thetas[theta_position + 1], qreg[j % qubits])
-        kernel.cx(qreg[j], qreg[(j + 1) % qubits])
-        kernel.rz(thetas[theta_position + 2], qreg[j % qubits])
-        kernel.rx(thetas[theta_position + 3], qreg[j % qubits])
-        theta_position += 4
+# divisive_clustering_function = DivisiveClusteringMaxCut()
 
-optimal_parameters = cudaq.vqe(
-    kernel=kernel,
-    spin_operator=H,
-    optimizer=optimizer,
-    parameter_count=parameter_count,
-    shots=max_shots,
+# hierrachial_sequence = get_divisive_sequence(coreset_df, divisive_clustering_function)
+
+# print(hierrachial_sequence)
+
+# divisive_clustering_function = DivisiveClusteringRandom()
+
+# hierrachial_sequence = get_divisive_sequence(coreset_df, divisive_clustering_function)
+
+# print(hierrachial_sequence)
+
+divisive_clustering_function = DivisiveClusteringKMeans()
+
+hierrachial_sequence = get_divisive_sequence(coreset_df, divisive_clustering_function)
+
+cost = divisive_clustering_function.get_divisive_cluster_cost(
+    hierrachial_sequence, coreset_df
 )
