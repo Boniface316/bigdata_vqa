@@ -396,6 +396,8 @@ class Coreset:
 
     @staticmethod
     def coreset_to_graph(
+        coreset_vectors: np.ndarray,
+        coreset_weights: np.ndarray,
         metric: Optional[str] = "dot",
         number_of_qubits_representing_data: Optional[int] = 1,
     ) -> nx.Graph:
@@ -413,9 +415,6 @@ class Coreset:
         """
 
         coreset = [(w, v) for w, v in zip(coreset_weights, coreset_vectors)]
-
-        if coreset is None:
-            coreset = self.generate_graph_instance(coreset)
 
         # Generate a networkx graph with correct edge weights
         vertices = len(coreset)
