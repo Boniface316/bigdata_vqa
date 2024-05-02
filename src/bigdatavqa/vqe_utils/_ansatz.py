@@ -3,45 +3,46 @@ import networkx as nx
 import numpy as np
 
 
-def kernel_two_local(number_of_qubits, circuit_depth) -> cudaq.Kernel:
-    """QAOA ansatz for maxcut"""
-    kernel, thetas = cudaq.make_kernel(list)
-    qreg = kernel.qalloc(number_of_qubits)
+def get_VQE_circuit(number_of_qubits: int, circuit_depth: int) -> cudaq.Kernel:
+    @cudaq.kernel
+    def kernel(thetas: list[float], number_of_qubits: int, circuit_depth: int):
+        qubits = cudaq.qvector(number_of_qubits)
 
-    # Loop over the layers
-    theta_position = 0
+        theta_position = 0
 
-    for i in range(circuit_depth):
-        for j in range(1, number_of_qubits):
-            kernel.rz(thetas[theta_position], qreg[j % number_of_qubits])
-            kernel.rx(thetas[theta_position + 1], qreg[j % number_of_qubits])
-            kernel.cx(qreg[j], qreg[(j + 1) % number_of_qubits])
-            kernel.rz(thetas[theta_position + 2], qreg[j % number_of_qubits])
-            kernel.rx(thetas[theta_position + 3], qreg[j % number_of_qubits])
-            theta_position += 4
+        for i in range(circuit_depth):
+            for j in range(number_of_qubits):
+                ry(thetas[theta_position], qubits[j])
+                rz(thetas[theta_position + 1], qubits[j])
+                theta_position += 2
+
+            for j in range(number_of_qubits - 1):
+                cx(qubits[j], qubits[j + 1])
+
+            for j in range(number_of_qubits):
+                ry(thetas[theta_position], qubits[j])
+                rz(thetas[theta_position + 1], qubits[j])
+
+                theta_position += 2
 
     return kernel
 
 
-def create_Hamiltonian_for_K2(
-    G: nx.Graph, qubits: int, weights: np.ndarray = None, add_identity=False
-) -> cudaq.SpinOperator:
-    """
-    Generate Hamiltonian for k=2
+def get_QAOA_circuit(number_of_qubits, circuit_depth):
+    @cudaq.kernel
+    def kernel(thetas: list[float], number_of_qubits: int, circuit_depth: int):
+        qubits = cudaq.qvector(number_of_qubits)
 
-    Args:
-        G: Problem as a graph
-        weights: Edge weights
-        nodes: nodes of the graph
-        add_identity: Add identiy or not. Defaults to False.
+        layers = circuit_depth
 
-    Returns:
-        Hamiltonian
-    """
-    H = 0
+        for layer in range(layers):
+            for qubit in range(number_of_qubits):
+                cx(qubits[qubit], qubits[(qubit + 1) % number_of_qubits])
+                rz(2.0 * thetas[layer], qubits[(qubit + 1) % number_of_qubits])
+                cx(qubits[qubit], qubits[(qubit + 1) % number_of_qubits])
 
-    for i, j in G.edges():
-        weight = G[i][j]["weight"]
-        H += weight * (spin.z(i) * spin.z(j))
+            rx(2.0 * thetas[layer + layers], qubits)
 
-    return H[0]
+    return kernel
+
+
