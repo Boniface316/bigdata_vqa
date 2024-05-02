@@ -95,13 +95,12 @@ class DivisiveClustering(ABC):
 
         cost_value = {}
         for bitstring in tqdm(bitstrings):
-            breakpoint()
-            c = 0
-            for i, j in G.edges():
-                edge_weight = G[i][j]["weight"]
-                c += self._get_edge_cost(bitstring, i, j, edge_weight)
+            edge_cost = 0
+            for edge_i, edge_j in G.edges():
+                edge_weight = G[edge_i][edge_j]["weight"]
+                edge_cost += self._get_edge_cost(bitstring, edge_i, edge_j, edge_weight)
 
-            cost_value.update({bitstring: c})
+            cost_value.update({bitstring: edge_cost})
 
         return cost_value
 
@@ -436,7 +435,6 @@ class DivisiveClusteringMaxCut(DivisiveClustering):
         )
 
         bitstrings = self._create_all_possible_bitstrings(G)
-        breakpoint()
 
         brute_force_bitstring_cost = self.brute_force_cost_maxcut(bitstrings, G)
 
@@ -446,6 +444,6 @@ class DivisiveClusteringMaxCut(DivisiveClustering):
 
         brute_force_bitstring_cost = brute_force_bitstring_cost.sort_values("cost")
 
-        max_bitstring = brute_force_bitstring_cost.index[0]
+        best_bitstring = brute_force_bitstring_cost["cost"].idxmax()
 
-        return [int(bit) for bit in max_bitstring]
+        return [int(bit) for bit in best_bitstring]
