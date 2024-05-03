@@ -301,7 +301,6 @@ class Dendrogram:
             hierarchial_clustering_sequence (List): The hierarchical clustering sequence.
             full_coreset_df (pd.DataFrame): The full coreset data.
         """
-
         parent_clusters = [
             parent_cluster
             for parent_cluster in hierarchial_clustering_sequence
