@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from math import pi
 
 import cudaq
@@ -6,26 +7,18 @@ from cudaq import spin
 from loguru import logger
 from sklearn.cluster import KMeans
 
-from ..coreset import Coreset, coreset_to_graph, normalize_np
+from ..coreset import Coreset
 from ..optimizer import get_optimizer
 from ..vqe_utils import kernel_two_local
 
 
-def get_coreset_vec_and_weights(
-    raw_data,
-    coreset_size,
-    number_of_coresets_to_evaluate,
-    number_of_centroids_evaluation,
-):
-    coreset = Coreset()
+class ThreeMeansClustering(ABC):
+    def __init__(coreset):
+        pass
 
-    return coreset.get_best_coresets(
-        data_vectors=raw_data,
-        number_of_runs=number_of_centroids_evaluation,
-        coreset_size=coreset_size,
-        number_of_coresets_to_evaluate=number_of_coresets_to_evaluate,
-        use_kmeans_cost=False,
-    )
+    @abstractmethod
+    def get_3means_cluster_centers_and_cost(self, coreset_df):
+        pass
 
 
 def get_3means_cluster_centers_and_cost(
@@ -47,9 +40,10 @@ def get_3means_cluster_centers_and_cost(
     )
 
     if normalize:
-        coreset_vectors_for_graph, coreset_weights_for_graph = normalize_np(
-            coreset_vectors, centralize=centralize
-        ), normalize_np(coreset_weights, centralize=centralize)
+        coreset_vectors_for_graph, coreset_weights_for_graph = (
+            normalize_np(coreset_vectors, centralize=centralize),
+            normalize_np(coreset_weights, centralize=centralize),
+        )
     else:
         coreset_vectors_for_graph, coreset_weights_for_graph = (
             coreset_vectors,
@@ -131,9 +125,7 @@ def get_approximate_partition(coreset_graph, circuit_depth, max_shots, max_itera
     Finds approximate partition of the data
     """
     # Simulate VQE to find the aprroximate state
-    state = approx_optimal_state(
-        coreset_graph, circuit_depth, max_shots, max_iterations
-    )
+    state = approx_optimal_state(coreset_graph, circuit_depth, max_shots, max_iterations)
     # Initialise the sets
     s1, s2, s3, sets = [], [], [], []
     # Create list of vertices of G
@@ -161,9 +153,7 @@ def get_approximate_partition(coreset_graph, circuit_depth, max_shots, max_itera
     return sets  # [[0], [4, 8], [2, 6]]
 
 
-def approx_optimal_state(
-    coreset_graph, circuit_depth, max_iterations=100, max_shots=1024
-):
+def approx_optimal_state(coreset_graph, circuit_depth, max_iterations=100, max_shots=1024):
     """
     #Optimises the vqe parameters to approximate an optimal state
     Inputs:
@@ -175,9 +165,7 @@ def approx_optimal_state(
     number_of_qubits = 2 * len(list(coreset_graph.nodes))
 
     # Find optimal parameters
-    optimizer, parameter_count = get_optimizer(
-        max_iterations, circuit_depth, number_of_qubits
-    )
+    optimizer, parameter_count = get_optimizer(max_iterations, circuit_depth, number_of_qubits)
 
     Hamiltonian = get_3means_Hamiltonian(coreset_graph)
 
