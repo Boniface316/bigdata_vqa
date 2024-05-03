@@ -1,29 +1,83 @@
-[build-system]
-requires = ["setuptools", "wheel",  "setuptools_scm>=6.0"]
-
-# Including this section is same as 'use_scm_version=True' in setup.py
-# See https://github.com/pypa/setuptools_scm for guidance
-[tool.setuptools_scm]
-
-[tool.isort]
-profile = "black"
-
 [tool.commitizen]
-name = "cz_conventional_commits"
-version = "0.1.0"
-version_files = [
-    "src/__version__.py",
-    "pyproject.toml:version"
-]
-style = [
-    ["qmark", "fg:#ff9d00 bold"],
-    ["question", "bold"],
-    ["answer", "fg:#ff9d00 bold"],
-    ["pointer", "fg:#ff9d00 bold"],
-    ["highlighted", "fg:#ff9d00 bold"],
-    ["selected", "fg:#cc5454"],
-    ["separator", "fg:#cc5454"],
-    ["instruction", ""],
-    ["text", ""],
-    ["disabled", "fg:#858585 italic"]
-]
+name = "cz_customize"
+tag_format = "$version"
+version_scheme = "semver"
+version_provider = "poetry"
+update_changelog_on_bump = true
+major_version_zero = true
+
+
+[tool.commitizen.customize]
+message_template = "{{change_type}}({{scope}}): {{message}} {% if is_breaking_change %} BREAKING CHANGE: {{footer}}{% endif %}"
+example = "feature: this feature enable customize through config file"
+schema = "<type>: <body>"
+schema_pattern = "(feature|bug fix):(\\s.*)"
+bump_pattern = "^(break|new|fix|hotfix)"
+bump_map = {"break" = "MAJOR", "new" = "MINOR", "fix" = "PATCH", "hotfix" = "PATCH"}
+change_type_order = ["BREAKING CHANGE", "feat", "fix", "refactor", "perf"]
+info_path = "cz_customize_info.txt"
+info = """
+This is customized info
+"""
+commit_parser = "^(?P<change_type>feature|bug fix):\\s(?P<message>.*)?"
+changelog_pattern = "^(feature|bug fix)?(!)?"
+change_type_map = {"feature" = "Feat", "bug fix" = "Fix"}
+
+
+
+[[tool.commitizen.customize.questions]]
+type = "list"
+name = "change_type"
+choices = [{value = "feat", name = "✨ feature: A new feature."}, 
+        {value = "fix", name = "🔥 fix: A bug fix."}, 
+        {value = "WIP", name = "🚧  WIP: Work in progress."}, 
+        {value = "backup", name = "🚑 backup: backup."},
+        {value = "style", name = "🎨 style: Changes that do not affect the meaning of the code (formats)."},
+        {value = "refactor", name = "♻️ refactor: A code changes that niether fixes a bur nor adds a feature."},
+        {value = "perf", name = "⚡️ perf: A code change that improves performance."},
+        {value = "docs", name = "📝 docs: Documentation only changes."},
+        {value = "test", name = "✅ test: Adding missing or correcting existing tests."},
+        {value = "build", name = "🔧 build: Changes that affect the build system or external dependencies (i.e pip, docker, .toml)."},
+        {value = "ci", name = "💚 ci: Changes to our CI configuration files and scripts."},
+        {value = "exp", name = "📈  experimentation: A code to recreate experimentation or experimentation results"},
+        ]
+
+message = "Select the type of change you are committing"
+
+[[tool.commitizen.customize.questions]]
+type = "input"
+name = "scope"
+message = "What is the scope of this change? (class or file name): (press [enter] to skip)\n"
+
+
+[[tool.commitizen.customize.questions]]
+type = "input"
+name = "message"
+message = "Write a short and imperative summary of the code changes: (lower case and no period)\n"
+
+[[tool.commitizen.customize.questions]]
+type = "confirm"
+name = "is_breaking_change"
+message = "Is this a BREAKING CHANGE? Correlates with MAJOR in SemVer"
+
+[[tool.commitizen.customize.questions]]
+type = "input"
+name = "footer"
+message = "Footer. Information about Breaking Changes and \n reference issues that this commit closes: (press [enter] to skip)\n" 
+
+[tool.ruff]
+fix = true
+indent-width = 4
+line-length = 100
+target-version = "py312"
+extend-include = ["*.ipynb"]
+
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["D100", "D103"]

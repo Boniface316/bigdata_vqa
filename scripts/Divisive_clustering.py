@@ -1,21 +1,16 @@
 import argparse
 import warnings
 
-from loguru import logger
-
-from bigdatavqa.datautils import DataUtils
+from bigdatavqa.data import DataUtils
 from bigdatavqa.divisiveclustering import create_hierarchial_cluster
+from loguru import logger
 
 parser = argparse.ArgumentParser(description="Divisive clustering circuit parameters")
 
 parser.add_argument("--qubits", type=int, required=True, help="Number of qubits")
 parser.add_argument("--circuit_depth", type=int, required=True, help="Circuit depth")
-parser.add_argument(
-    "--number_of_shots", type=int, required=True, help="Number of shots"
-)
-parser.add_argument(
-    "--iterations", type=int, required=True, help="Number of iterations"
-)
+parser.add_argument("--number_of_shots", type=int, required=True, help="Number of shots")
+parser.add_argument("--iterations", type=int, required=True, help="Number of iterations")
 parser.add_argument(
     "--number_of_experiment_runs",
     type=int,
