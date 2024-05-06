@@ -2,23 +2,18 @@ import argparse
 import os as os
 
 import numpy as np
-from loguru import logger
-
 from bigdatavqa.coreset import Coreset, normalize_np
-from bigdatavqa.datautils import DataUtils
+from bigdatavqa.data import DataUtils
 from bigdatavqa.k3meansclustering import get_3means_cluster_centers_and_cost
+from loguru import logger
 
 best_cost = np.inf
 parser = argparse.ArgumentParser(description="GMM experiment parameters")
 
 parser.add_argument("--qubits", type=int, required=True, help="Number of qubits")
 parser.add_argument("--circuit_depth", type=int, required=True, help="Circuit depth")
-parser.add_argument(
-    "--number_of_shots", type=int, required=True, help="Number of shots"
-)
-parser.add_argument(
-    "--iterations", type=int, required=True, help="Number of iterations"
-)
+parser.add_argument("--number_of_shots", type=int, required=True, help="Number of shots")
+parser.add_argument("--iterations", type=int, required=True, help="Number of iterations")
 parser.add_argument(
     "--number_of_experiment_runs",
     type=int,
@@ -91,15 +86,11 @@ if __name__ == "__main__":
             max_shots,
             max_iterations,
         )
-        logger.info(
-            f"Clusters:{cluster_centers} \n  Cost for clusters: {cost_for_clusters}"
-        )
+        logger.info(f"Clusters:{cluster_centers} \n  Cost for clusters: {cost_for_clusters}")
 
         if cost_for_clusters < best_cost:
             best_cost = cost_for_clusters
             best_cluster_centers = cluster_centers
             logger.info("New cost is better than the previous best cost")
 
-    logger.success(
-        f"Best cluster centers: {best_cluster_centers} \n Best cost: {best_cost}"
-    )
+    logger.success(f"Best cluster centers: {best_cluster_centers} \n Best cost: {best_cost}")
