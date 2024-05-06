@@ -1,4 +1,4 @@
-from .divisiveclustering import (
+from ._divisiveclustering import (
     DivisiveClusteringKMeans,
     DivisiveClusteringMaxCut,
     DivisiveClusteringRandom,
