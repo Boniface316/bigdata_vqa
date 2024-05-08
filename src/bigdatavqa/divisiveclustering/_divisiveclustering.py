@@ -376,6 +376,7 @@ class DivisiveClusteringRandom(DivisiveClustering):
         *args,
         **kwargs,
     ) -> List[int]:
+        # TODO: create best_bitstring function
         rows = coreset_vectors_df_for_iteration.shape[0]
         if rows > 2:
             bitstring_not_accepted = True

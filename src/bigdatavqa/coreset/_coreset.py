@@ -402,21 +402,21 @@ class Coreset:
         G.add_edges_from(edges)
 
         for edge in G.edges():
-            v_i = edge[0]
-            v_j = edge[1]
-            w_i = coreset[v_i // number_of_qubits_representing_data][0]
-            w_j = coreset[v_j // number_of_qubits_representing_data][0]
+            v_i = edge[0] // number_of_qubits_representing_data
+            v_j = edge[1] // number_of_qubits_representing_data
+            w_i = coreset[v_i][0]
+            w_j = coreset[v_j][0]
             if metric == "dot":
                 mval = np.dot(
-                    coreset[v_i // number_of_qubits_representing_data][1],
-                    coreset[v_j // number_of_qubits_representing_data][1],
+                    coreset[v_i][1],
+                    coreset[v_j][1],
                 )
             elif metric == "dist":
                 mval = np.linalg.norm(coreset[v_i][1] - coreset[v_j][1])
             else:
                 raise Exception("Unknown metric: {}".format(metric))
 
-            G[v_i][v_j]["weight"] = w_i * w_j * mval
+            G[edge[0]][edge[1]]["weight"] = w_i * w_j * mval
 
         return G
 
