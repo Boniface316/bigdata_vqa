@@ -39,8 +39,6 @@ class K3MeansClustering(ABC):
             else:
                 s3.append(vertices[i])
 
-        # TODO: verify the outcome
-
         return [s1, s2, s3]
 
     def preprocess_data(self, corese_df, vector_columns, weight_columns, normalize_vectors=True):
@@ -285,7 +283,6 @@ class K3MeansClusteringKMeans(K3MeansClustering):
     def get_cluster_centers(self, coreset_df, vector_columns, weight_columns):
         data_set = coreset_df.copy()
         data_set["weights"] = 0
-        breakpoint()
         coreset_vectors, _ = self.preprocess_data(
             data_set, vector_columns, weight_columns, self.normalize_vectors
         )
