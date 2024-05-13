@@ -3,5 +3,5 @@ from ._k3meansclustering import (
     K3MeansClusteringKMeans,
     K3MeansClusteringMaxCut,
     K3MeansClusteringRandom,
-    K3MeansClusteringVQE,
+    K3MeansClusteringVQA,
 )

@@ -89,7 +89,7 @@ class K3MeansClustering(ABC):
         return clusters_centers
 
 
-class K3MeansClusteringVQE(K3MeansClustering):
+class K3MeansClusteringVQA(K3MeansClustering):
     def __init__(
         self,
         qubits,
