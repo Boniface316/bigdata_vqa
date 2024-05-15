@@ -39,7 +39,10 @@ class GMMClustering(ABC):
             weight_columns=weight_columns,
         )
         if self.cost is None:
-            self.cost, _ = self.get_centroids_based_cost(coreset_vectors, self.cluster_centers)
+            coreset_vectors_origial = coreset_df[vector_columns].to_numpy()
+            self.cost, _ = self.get_centroids_based_cost(
+                coreset_vectors_origial, self.cluster_centers
+            )
 
     @abstractmethod
     def get_labels(
@@ -185,7 +188,9 @@ class GMMClusteringVQA(GMMClustering):
 
         return [([pauli, weight]) for pauli, weight in zip(paulis, pauli_weights)]
 
-    def get_labels(self, coreset_vectors, coreset_weights):
+    def get_labels(
+        self, coreset_df, coreset_vectors, coreset_weights, vector_columns, *args, **kwargs
+    ):
         optimizer, parameter_count = self.optimizer_function(
             self.optimizer,
             self.max_iterations,
@@ -224,7 +229,12 @@ class GMMClusteringVQA(GMMClustering):
             shots_count=self.max_shots,
         )
 
-        return self.counts.most_probable()
+        bitstring = self.counts.most_probable()
+        bitstring = [int(i) for i in bitstring]
+        coreset_df["k"] = bitstring
+        self.cluster_centers = self.get_cluster_centroids_from_bitstring(coreset_df, vector_columns)
+
+        return bitstring
 
 
 class GMMClusteringRandom(GMMClustering):
@@ -299,7 +309,14 @@ class GMMClusteringClassicalGMM(GMMClustering):
         super().__init__(normalize_vectors)
 
     def get_labels(
-        self, coreset_df, coreset_vectors, vector_columns, n_components=2, *args, **kwargs
+        self,
+        coreset_df,
+        coreset_vectors,
+        vector_columns,
+        weight_columns,
+        n_components=2,
+        *args,
+        **kwargs,
     ):
         gmm = GaussianMixture(n_components=n_components)
         labels = gmm.fit_predict(coreset_vectors)
@@ -308,62 +325,3 @@ class GMMClusteringClassicalGMM(GMMClustering):
         self.cluster_centers = self.get_cluster_centroids_from_bitstring(coreset_df, vector_columns)
 
         return labels
-
-
-if __name__ == "__main__":
-    import os as os
-    import warnings
-
-    import matplotlib.pyplot as plt
-    import pandas as pd
-
-    from bigdatavqa.coreset import Coreset
-    from bigdatavqa.gmm import (
-        GMMClustering,
-        GMMClusteringClassicalGMM,
-        GMMClusteringMaxCut,
-        GMMClusteringRandom,
-        GMMClusteringVQA,
-    )
-    from bigdatavqa.optimizer import get_optimizer_for_VQE
-    from bigdatavqa.vqe_utils import create_GMM_hamiltonian, get_VQE_circuit
-
-    warnings.filterwarnings("ignore")
-
-    qubits = 5
-    coreset_size = qubits
-    circuit_depth = 1
-    max_shots = 1000
-    max_iterations = 100
-    number_of_experiment_runs = 5
-    number_of_corsets_to_evaluate = 15
-    number_of_centroid_evaluation = 20
-
-    raw_data = Coreset.create_dataset(1000)
-    raw_data_df = pd.DataFrame(raw_data, columns=list("XY"))
-
-    coreset = Coreset(
-        raw_data=raw_data,
-        number_of_sampling_for_centroids=10,
-        coreset_size=coreset_size,
-        number_of_coresets_to_evaluate=4,
-        coreset_method="BFL2",
-    )
-
-    coreset_vectors, coreset_weights = coreset.get_best_coresets()
-
-    coreset_df = pd.DataFrame(coreset_vectors, columns=list("XY"))
-    coreset_df["weights"] = coreset_weights
-    coreset_df["Name"] = [chr(i + 65) for i in coreset_df.index]
-
-    coreset_df = pd.read_csv("coreset_df.csv")
-
-    gmm = GMMClusteringClassicalGMM()
-    gmm.fit(coreset_df, ["X", "Y"], ["weights"])
-    print(gmm.cost)
-    print(gmm.labels)
-    print(gmm.cluster_centers)
-
-
-# 2.915643691806313
-# [0, 0, 1, 1, 1]
