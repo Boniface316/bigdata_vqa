@@ -1,1 +1,7 @@
-from ._gmm import run_gmm, get_gmm_bitstring
+from ._gmm import (
+    GMMClustering,
+    GMMClusteringClassicalGMM,
+    GMMClusteringMaxCut,
+    GMMClusteringRandom,
+    GMMClusteringVQA,
+)
