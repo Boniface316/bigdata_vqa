@@ -1,6 +1,8 @@
-import cudaq
 import networkx as nx
 import numpy as np
+
+
+import cudaq
 
 
 def get_VQE_circuit(number_of_qubits: int, circuit_depth: int) -> cudaq.Kernel:
@@ -44,5 +46,3 @@ def get_QAOA_circuit(number_of_qubits, circuit_depth):
             rx(2.0 * thetas[layer + layers], qubits)
 
     return kernel
-
-

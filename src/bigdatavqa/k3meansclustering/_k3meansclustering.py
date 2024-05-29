@@ -1,13 +1,13 @@
 import random
 from abc import ABC, abstractmethod
 
+from ..coreset import Coreset
+
 import cudaq
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
 from tqdm import tqdm
-
-from ..coreset import Coreset
 
 
 class K3MeansClustering(ABC):

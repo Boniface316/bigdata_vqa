@@ -1,15 +1,15 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
+from ..coreset import Coreset
+from ..plot import Dendrogram
+
 import cudaq
 import networkx as nx
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
 from tqdm import tqdm
-
-from ..coreset import Coreset
-from ..plot import Dendrogram
 
 
 class DivisiveClustering(ABC):
