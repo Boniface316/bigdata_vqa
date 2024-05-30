@@ -70,15 +70,21 @@ class DivisiveClustering(ABC):
             Tuple[np.ndarray, np.ndarray]: The coreset vectors and weights.
         """
 
-        coreset_vectors_for_iteration = coreset_vectors_df_for_iteration[vector_columns].to_numpy()
+        coreset_vectors_for_iteration = coreset_vectors_df_for_iteration[
+            vector_columns
+        ].to_numpy()
 
-        coreset_weights_for_iteration = coreset_vectors_df_for_iteration[weight_column].to_numpy()
+        coreset_weights_for_iteration = coreset_vectors_df_for_iteration[
+            weight_column
+        ].to_numpy()
 
         if self.normalize_vectors:
             coreset_vectors_for_iteration = Coreset.normalize_array(
                 coreset_vectors_for_iteration, True
             )
-            coreset_weights_for_iteration = Coreset.normalize_array(coreset_weights_for_iteration)
+            coreset_weights_for_iteration = Coreset.normalize_array(
+                coreset_weights_for_iteration
+            )
 
         return (coreset_vectors_for_iteration, coreset_weights_for_iteration)
 
@@ -105,7 +111,9 @@ class DivisiveClustering(ABC):
 
         return cost_value
 
-    def _get_edge_cost(self, bitstring: str, i: int, j: int, edge_weight: float) -> float:
+    def _get_edge_cost(
+        self, bitstring: str, i: int, j: int, edge_weight: float
+    ) -> float:
         """
         Get the edge cost using MaxCut cost function.
         Args:
@@ -166,7 +174,9 @@ class DivisiveClustering(ABC):
         coreset_data = coreset_data.drop(columns_to_exclude, axis=1)
         cost_at_each_iteration = []
         for parent in hierarchical_clustering_sequence:
-            children_lst = Dendrogram.find_children(parent, hierarchical_clustering_sequence)
+            children_lst = Dendrogram.find_children(
+                parent, hierarchical_clustering_sequence
+            )
 
             if not children_lst:
                 continue
@@ -181,14 +191,22 @@ class DivisiveClustering(ABC):
 
                 cost = 0
 
-                centroid_coords = parent_data_frame.groupby("cluster").mean()[vector_columns]
+                centroid_coords = parent_data_frame.groupby("cluster").mean()[
+                    vector_columns
+                ]
                 centroid_coords = centroid_coords.to_numpy()
 
                 for idx, row in parent_data_frame.iterrows():
                     if row.cluster == 0:
-                        cost += np.linalg.norm(row[vector_columns] - centroid_coords[0]) ** 2
+                        cost += (
+                            np.linalg.norm(row[vector_columns] - centroid_coords[0])
+                            ** 2
+                        )
                     else:
-                        cost += np.linalg.norm(row[vector_columns] - centroid_coords[1]) ** 2
+                        cost += (
+                            np.linalg.norm(row[vector_columns] - centroid_coords[1])
+                            ** 2
+                        )
 
                 cost_at_each_iteration.append(cost)
 
@@ -221,7 +239,9 @@ class DivisiveClustering(ABC):
         ]
 
         if len(bitstring_probability_df) > 10:
-            selected_rows = int(len(bitstring_probability_df) * self.threshold_for_maxcut)
+            selected_rows = int(
+                len(bitstring_probability_df) * self.threshold_for_maxcut
+            )
         else:
             selected_rows = int(len(bitstring_probability_df) / 2)
 
@@ -231,7 +251,9 @@ class DivisiveClustering(ABC):
 
         brute_force_cost_of_bitstrings = self.brute_force_cost_maxcut(bitstrings, G)
 
-        return min(brute_force_cost_of_bitstrings, key=brute_force_cost_of_bitstrings.get)
+        return min(
+            brute_force_cost_of_bitstrings, key=brute_force_cost_of_bitstrings.get
+        )
 
     def get_divisive_sequence(
         self,
@@ -254,7 +276,9 @@ class DivisiveClustering(ABC):
         hierarchial_clustering_sequence = [index_values]
 
         while single_clusters < len(index_values):
-            index_values_to_evaluate = hierarchial_clustering_sequence[index_iteration_counter]
+            index_values_to_evaluate = hierarchial_clustering_sequence[
+                index_iteration_counter
+            ]
             if len(index_values_to_evaluate) == 1:
                 single_clusters += 1
 
@@ -263,13 +287,17 @@ class DivisiveClustering(ABC):
                 hierarchial_clustering_sequence.append([index_values_to_evaluate[1]])
 
             else:
-                coreset_vectors_df_for_iteration = full_coreset_df.iloc[index_values_to_evaluate]
+                coreset_vectors_df_for_iteration = full_coreset_df.iloc[
+                    index_values_to_evaluate
+                ]
 
-                hierarchial_clustering_sequence = self.get_hierarchical_clustering_sequence(
-                    coreset_vectors_df_for_iteration,
-                    hierarchial_clustering_sequence,
-                    vector_columns,
-                    weight_column,
+                hierarchial_clustering_sequence = (
+                    self.get_hierarchical_clustering_sequence(
+                        coreset_vectors_df_for_iteration,
+                        hierarchial_clustering_sequence,
+                        vector_columns,
+                        weight_column,
+                    )
                 )
 
             index_iteration_counter += 1
@@ -397,7 +425,11 @@ class DivisiveClusteringKMeans(DivisiveClustering):
         pass
 
     def run_divisive_clustering(
-        self, coreset_vectors_df_for_iteration: pd.DataFrame, vector_columns, *args, **kwargs
+        self,
+        coreset_vectors_df_for_iteration: pd.DataFrame,
+        vector_columns,
+        *args,
+        **kwargs,
     ):
         if len(coreset_vectors_df_for_iteration) > 2:
             X = coreset_vectors_df_for_iteration[vector_columns].to_numpy()
@@ -452,7 +484,6 @@ class DivisiveClusteringMaxCut(DivisiveClustering):
         )
 
         bitstrings = self._create_all_possible_bitstrings(G)
-        breakpoint()
 
         brute_force_bitstring_cost = self.brute_force_cost_maxcut(bitstrings, G)
 
