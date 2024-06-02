@@ -3,6 +3,7 @@ import warnings
 
 import cudaq
 import pandas as pd
+from bigdatavqa.ansatz import get_QAOA_circuit, get_VQE_circuit
 from bigdatavqa.coreset import Coreset
 from bigdatavqa.divisiveclustering import (
     DivisiveClusteringKMeans,
@@ -10,8 +11,8 @@ from bigdatavqa.divisiveclustering import (
     DivisiveClusteringRandom,
     DivisiveClusteringVQA,
 )
+from bigdatavqa.Hamiltonians import get_K2_Hamiltonian
 from bigdatavqa.optimizer import get_optimizer_for_QAOA, get_optimizer_for_VQE
-from bigdatavqa.vqe_utils import get_K2_Hamiltonian, get_QAOA_circuit, get_VQE_circuit
 
 warnings.filterwarnings("ignore")
 
@@ -171,8 +172,12 @@ def get_VQA_cost(
     optimizer_function,
     create_circuit,
     vector_columns=["X", "Y"],
+    weights_column="weights",
 ):
     divisive_clustering = DivisiveClusteringVQA(
+        coreset_df=coreset_df,
+        vector_columns=vector_columns,
+        weights_column=weights_column,
         circuit_depth=circuit_depth,
         max_iterations=max_iterations,
         max_shots=max_shots,
@@ -186,75 +191,56 @@ def get_VQA_cost(
         coreset_to_graph_metric=coreset_to_graph_metric,
     )
 
-    hierarchial_clustering_sequence = divisive_clustering.get_divisive_sequence(
-        coreset_df, vector_columns=vector_columns
+    divisive_clustering.fit()
+
+    return divisive_clustering.cost
+
+
+def get_KMeans_cost(coreset_df, vector_columns, weights_column):
+    divisive_clustering = DivisiveClusteringKMeans(
+        coreset_df, vector_columns=vector_columns, weights_column=weights_column
     )
 
-    return sum(
-        divisive_clustering.get_divisive_cluster_cost(
-            hierarchial_clustering_sequence,
-            coreset_df,
-            vector_columns=vector_columns,
-        )
+    divisive_clustering.fit()
+
+    return divisive_clustering.cost
+
+
+def get_Random_cost(coreset_df, vector_columns, weights_column):
+    divisive_clustering = DivisiveClusteringRandom(
+        coreset_df, vector_columns=vector_columns, weights_column=weights_column
     )
 
+    divisive_clustering.fit()
 
-def get_KMeans_cost(coreset_df, vector_columns):
-    divisive_clustering = DivisiveClusteringKMeans()
+    return divisive_clustering.cost
 
-    hierarchial_clustering_sequence = divisive_clustering.get_divisive_sequence(
-        coreset_df, vector_columns=vector_columns
+
+def get_MaxCut_cost(coreset_df, vector_columns, weights_column):
+    divisive_clustering = DivisiveClusteringMaxCut(
+        coreset_df, vector_columns=vector_columns, weights_column=weights_column
     )
 
-    return sum(
-        divisive_clustering.get_divisive_cluster_cost(
-            hierarchial_clustering_sequence,
-            coreset_df,
-            vector_columns=vector_columns,
-        )
-    )
+    divisive_clustering.fit()
 
-
-def get_Random_cost(coreset_df, vector_columns):
-    divisive_clustering = DivisiveClusteringRandom()
-
-    hierarchial_clustering_sequence = divisive_clustering.get_divisive_sequence(
-        coreset_df, vector_columns=vector_columns
-    )
-
-    return sum(
-        divisive_clustering.get_divisive_cluster_cost(
-            hierarchial_clustering_sequence,
-            coreset_df,
-            vector_columns=vector_columns,
-        )
-    )
-
-
-def get_MaxCut_cost(coreset_df, vector_columns):
-    divisive_clustering = DivisiveClusteringMaxCut()
-
-    hierarchial_clustering_sequence = divisive_clustering.get_divisive_sequence(
-        coreset_df, vector_columns=vector_columns
-    )
-
-    return sum(
-        divisive_clustering.get_divisive_cluster_cost(
-            hierarchial_clustering_sequence,
-            coreset_df,
-            vector_columns=vector_columns,
-        )
-    )
+    return divisive_clustering.cost
 
 
 def main(methods, *args, **kwargs):
-    coreset_df = create_coreset_df(
-        number_of_rows=kwargs["number_of_rows"],
-        coreset_size=kwargs["coreset_size"],
-        coreset_method=kwargs["coreset_method"],
-        number_of_coresets_to_evaluate=kwargs["number_of_coresets_to_evaluate"],
-        number_of_sampling_for_centroids=kwargs["number_of_sampling_for_centroids"],
-    )
+    coreset_file_name = f"coreset_df_{kwargs['coreset_size']}.csv"
+
+    try:
+        coreset_df = pd.read_csv(coreset_file_name)
+
+    except FileNotFoundError:
+        coreset_df = create_coreset_df(
+            number_of_rows=kwargs["number_of_rows"],
+            coreset_size=kwargs["coreset_size"],
+            coreset_method=kwargs["coreset_method"],
+            number_of_coresets_to_evaluate=kwargs["number_of_coresets_to_evaluate"],
+            number_of_sampling_for_centroids=kwargs["number_of_sampling_for_centroids"],
+        )
+        coreset_df.to_csv(coreset_file_name, index=False)
 
     cost_dict = {}
 
@@ -263,6 +249,8 @@ def main(methods, *args, **kwargs):
         if method == "QAOA":
             cost_dict[method] = get_VQA_cost(
                 coreset_df=coreset_df,
+                vector_columns=kwargs["vector_columns"],
+                weights_column=kwargs["weights_column"],
                 circuit_depth=kwargs["circuit_depth"],
                 max_iterations=kwargs["max_iterations"],
                 max_shots=kwargs["max_shots"],
@@ -273,12 +261,13 @@ def main(methods, *args, **kwargs):
                 normalize_vectors=kwargs["normalize_vectors"],
                 optimizer_function=kwargs["optimizer_function_QAOA"],
                 create_circuit=kwargs["create_circuit_QAOA"],
-                vector_columns=kwargs["vector_columns"],
             )
 
         elif method == "VQE":
             cost_dict[method] = get_VQA_cost(
                 coreset_df=coreset_df,
+                vector_columns=kwargs["vector_columns"],
+                weights_column=kwargs["weights_column"],
                 circuit_depth=kwargs["circuit_depth"],
                 max_iterations=kwargs["max_iterations"],
                 max_shots=kwargs["max_shots"],
@@ -289,22 +278,27 @@ def main(methods, *args, **kwargs):
                 normalize_vectors=kwargs["normalize_vectors"],
                 optimizer_function=kwargs["optimizer_function_VQE"],
                 create_circuit=kwargs["create_circuit_VQE"],
-                vector_columns=kwargs["vector_columns"],
             )
 
         elif method == "KMeans":
             cost_dict[method] = get_KMeans_cost(
-                coreset_df=coreset_df, vector_columns=kwargs["vector_columns"]
+                coreset_df=coreset_df,
+                vector_columns=kwargs["vector_columns"],
+                weights_column=kwargs["weights_column"],
             )
 
         elif method == "Random":
             cost_dict[method] = get_Random_cost(
-                coreset_df=coreset_df, vector_columns=kwargs["vector_columns"]
+                coreset_df=coreset_df,
+                vector_columns=kwargs["vector_columns"],
+                weights_column=kwargs["weights_column"],
             )
 
         elif method == "MaxCut":
             cost_dict[method] = get_MaxCut_cost(
-                coreset_df=coreset_df, vector_columns=kwargs["vector_columns"]
+                coreset_df=coreset_df,
+                vector_columns=kwargs["vector_columns"],
+                weights_column=kwargs["weights_column"],
             )
 
         else:
@@ -339,4 +333,5 @@ if __name__ == "__main__":
         sort_by_descending=True,
         coreset_to_graph_metric=coreset_to_graph_metric,
         vector_columns=["X", "Y"],
+        weights_column="weights",
     )
