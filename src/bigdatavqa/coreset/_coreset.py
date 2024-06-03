@@ -7,6 +7,7 @@ from scipy.stats import multivariate_normal
 from sklearn.cluster import KMeans
 
 
+# TODO: refactor with abstract class
 class Coreset:
     # https://github.com/teaguetomesh/coresets/blob/ae69df4f52d683c54ab229489e5102b09378da86/kMeans/coreset.py
     def __init__(
@@ -62,11 +63,15 @@ class Coreset:
         self._coreset_size = coreset_size
 
     @number_of_coresets_to_evaluate.setter
-    def number_of_coresets_to_evaluate(self, number_of_coresets_to_evaluate: int) -> None:
+    def number_of_coresets_to_evaluate(
+        self, number_of_coresets_to_evaluate: int
+    ) -> None:
         self._number_of_coresets_to_evaluate = number_of_coresets_to_evaluate
 
     @number_of_sampling_for_centroids.setter
-    def number_of_sampling_for_centroids(self, number_of_sampling_for_centroids: int) -> None:
+    def number_of_sampling_for_centroids(
+        self, number_of_sampling_for_centroids: int
+    ) -> None:
         self._number_of_sampling_for_centroids = number_of_sampling_for_centroids
 
     @coreset_method.setter
@@ -203,7 +208,9 @@ class Coreset:
         minimum_distance = np.inf
         closest_index = -1
         for i, centroid in enumerate(centroids):
-            distance_between_data_instance_and_centroid = np.linalg.norm(data_instance - centroid)
+            distance_between_data_instance_and_centroid = np.linalg.norm(
+                data_instance - centroid
+            )
             if distance_between_data_instance_and_centroid < minimum_distance:
                 minimum_distance = distance_between_data_instance_and_centroid
                 closest_index = i
@@ -226,7 +233,9 @@ class Coreset:
         number_of_data_points_close_to_a_cluster = {i: 0 for i in range(len(centroids))}
         sum_distance_to_closest_cluster = 0.0
         for data_instance in self.raw_data:
-            min_dist, closest_index = self.distance_to_centroids(data_instance, centroids)
+            min_dist, closest_index = self.distance_to_centroids(
+                data_instance, centroids
+            )
             number_of_data_points_close_to_a_cluster[closest_index] += 1
             sum_distance_to_closest_cluster += min_dist**2
 
@@ -235,7 +244,9 @@ class Coreset:
             min_dist, closest_index = self.distance_to_centroids(p, centroids)
             Prob[i] += min_dist**2 / (2 * sum_distance_to_closest_cluster)
             Prob[i] += 1 / (
-                2 * len(centroids) * number_of_data_points_close_to_a_cluster[closest_index]
+                2
+                * len(centroids)
+                * number_of_data_points_close_to_a_cluster[closest_index]
             )
 
         if not (0.999 <= sum(Prob) <= 1.001):
@@ -243,7 +254,9 @@ class Coreset:
                 "sum(Prob) = %s; the algorithm should automatically "
                 "normalize Prob by construction" % sum(Prob)
             )
-        chosen_indices = np.random.choice(len(self._raw_data), size=self._coreset_size, p=Prob)
+        chosen_indices = np.random.choice(
+            len(self._raw_data), size=self._coreset_size, p=Prob
+        )
         weights = [1 / (self._coreset_size * Prob[i]) for i in chosen_indices]
 
         return ([self._raw_data[i] for i in chosen_indices], weights)
@@ -351,15 +364,27 @@ class Coreset:
             sum_dist[closest_index] += dist**2
 
         for i, data_instance in enumerate(self._raw_data):
-            p[i] = 2 * alpha * self.distance_to_centroids(data_instance, centroids)[0] ** 2 / c_phi
+            p[i] = (
+                2
+                * alpha
+                * self.distance_to_centroids(data_instance, centroids)[0] ** 2
+                / c_phi
+            )
 
             closest_index = self.distance_to_centroids(data_instance, centroids)[1]
-            p[i] += 4 * alpha * sum_dist[closest_index] / (B_i_totals[closest_index] * c_phi)
+            p[i] += (
+                4
+                * alpha
+                * sum_dist[closest_index]
+                / (B_i_totals[closest_index] * c_phi)
+            )
 
             p[i] += 4 * len(self._raw_data) / B_i_totals[closest_index]
         p = p / sum(p)
 
-        chosen_indices = np.random.choice(len(self._raw_data), size=self._coreset_size, p=p)
+        chosen_indices = np.random.choice(
+            len(self._raw_data), size=self._coreset_size, p=p
+        )
         weights = [1 / (self._coreset_size * p[i]) for i in chosen_indices]
 
         return [self._raw_data[i] for i in chosen_indices], weights
@@ -387,7 +412,9 @@ class Coreset:
         coreset = [(w, v) for w, v in zip(coreset_weights, coreset_vectors)]
 
         vertices = len(coreset)
-        vertex_labels = [number_of_qubits_representing_data * int(i) for i in range(vertices)]
+        vertex_labels = [
+            number_of_qubits_representing_data * int(i) for i in range(vertices)
+        ]
         G = nx.Graph()
         G.add_nodes_from(vertex_labels)
         edges = [
@@ -479,8 +506,8 @@ class Coreset:
             data = distr.rvs(size=number_of_samples_from_distribution)
 
             X[
-                number_of_samples_from_distribution * idx : number_of_samples_from_distribution
-                * (idx + 1)
+                number_of_samples_from_distribution
+                * idx : number_of_samples_from_distribution * (idx + 1)
             ][:] = data
 
         return X

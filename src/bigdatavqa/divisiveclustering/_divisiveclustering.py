@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from ..coreset import Coreset
-from ..plot import Dendrogram
+from ..plot import Dendrogram, Voironi_Tessalation
 
 import cudaq
 import networkx as nx
@@ -12,11 +12,37 @@ from sklearn.cluster import KMeans
 from tqdm import tqdm
 
 
-class DivisiveClustering(ABC):
+class DivisiveClustering(ABC, Dendrogram, Voironi_Tessalation):
     def __init__(
         self,
+        full_coreset_df: pd.DataFrame,
+        vector_columns: List[str],
+        weight_column: str,
     ) -> None:
-        pass
+        self.full_coreset_df = full_coreset_df
+        self.vector_columns = vector_columns
+        self.weight_column = weight_column
+        self.linkage_matrix = []
+
+    @property
+    def coreset_data(self) -> pd.DataFrame:
+        return self.coreset_data
+
+    @coreset_data.setter
+    def coreset_data(self, coreset_data: pd.DataFrame) -> None:
+        self.linkage_matrix = []
+        self.coreset_data = coreset_data
+
+    @property
+    def hierarchical_clustering_sequence(self) -> List[Union[str, int]]:
+        return self._hierarchical_clustering_sequence
+
+    @hierarchical_clustering_sequence.setter
+    def hierarchical_clustering_sequence(
+        self, hierarchical_clustering_sequence: List[Union[str, int]]
+    ) -> None:
+        self.linkage_matrix = []
+        self._hierarchical_clustering_sequence = hierarchical_clustering_sequence
 
     @abstractmethod
     def run_divisive_clustering(
@@ -155,13 +181,7 @@ class DivisiveClustering(ABC):
 
         return hierarchial_sequence
 
-    @staticmethod
-    def get_divisive_cluster_cost(
-        hierarchical_clustering_sequence: List[Union[str, int]],
-        coreset_data: pd.DataFrame,
-        vector_columns: List[str],
-        columns_to_exclude: List[str] = ["weights", "Name"],
-    ) -> List[float]:
+    def get_divisive_cluster_cost(self) -> List[float]:
         """
         Get the cost of the divisive clustering at each iteration.
         Args:
@@ -171,11 +191,11 @@ class DivisiveClustering(ABC):
             List[float]: The cost of the divisive clustering sequence.
         """
 
-        coreset_data = coreset_data.drop(columns_to_exclude, axis=1)
+        coreset_data = self.full_coreset_df[self.vector_columns]
         cost_at_each_iteration = []
-        for parent in hierarchical_clustering_sequence:
+        for parent in self.hierarchical_clustering_sequence:
             children_lst = Dendrogram.find_children(
-                parent, hierarchical_clustering_sequence
+                parent, self.hierarchical_clustering_sequence
             )
 
             if not children_lst:
@@ -192,19 +212,23 @@ class DivisiveClustering(ABC):
                 cost = 0
 
                 centroid_coords = parent_data_frame.groupby("cluster").mean()[
-                    vector_columns
+                    self.vector_columns
                 ]
                 centroid_coords = centroid_coords.to_numpy()
 
                 for idx, row in parent_data_frame.iterrows():
                     if row.cluster == 0:
                         cost += (
-                            np.linalg.norm(row[vector_columns] - centroid_coords[0])
+                            np.linalg.norm(
+                                row[self.vector_columns] - centroid_coords[0]
+                            )
                             ** 2
                         )
                     else:
                         cost += (
-                            np.linalg.norm(row[vector_columns] - centroid_coords[1])
+                            np.linalg.norm(
+                                row[self.vector_columns] - centroid_coords[1]
+                            )
                             ** 2
                         )
 
@@ -255,7 +279,7 @@ class DivisiveClustering(ABC):
             brute_force_cost_of_bitstrings, key=brute_force_cost_of_bitstrings.get
         )
 
-    def get_divisive_sequence(
+    def _divisive_sequence(
         self,
         full_coreset_df: pd.DataFrame,
         vector_columns: List[str],
@@ -273,28 +297,28 @@ class DivisiveClustering(ABC):
         single_clusters = 0
 
         index_values = list(range(len(full_coreset_df)))
-        hierarchial_clustering_sequence = [index_values]
+        hierarchical_clustering_sequence = [index_values]
 
         while single_clusters < len(index_values):
-            index_values_to_evaluate = hierarchial_clustering_sequence[
+            index_values_to_evaluate = hierarchical_clustering_sequence[
                 index_iteration_counter
             ]
             if len(index_values_to_evaluate) == 1:
                 single_clusters += 1
 
             elif len(index_values_to_evaluate) == 2:
-                hierarchial_clustering_sequence.append([index_values_to_evaluate[0]])
-                hierarchial_clustering_sequence.append([index_values_to_evaluate[1]])
+                hierarchical_clustering_sequence.append([index_values_to_evaluate[0]])
+                hierarchical_clustering_sequence.append([index_values_to_evaluate[1]])
 
             else:
                 coreset_vectors_df_for_iteration = full_coreset_df.iloc[
                     index_values_to_evaluate
                 ]
 
-                hierarchial_clustering_sequence = (
+                hierarchical_clustering_sequence = (
                     self.get_hierarchical_clustering_sequence(
                         coreset_vectors_df_for_iteration,
-                        hierarchial_clustering_sequence,
+                        hierarchical_clustering_sequence,
                         vector_columns,
                         weight_column,
                     )
@@ -302,12 +326,26 @@ class DivisiveClustering(ABC):
 
             index_iteration_counter += 1
 
-        return hierarchial_clustering_sequence
+        return hierarchical_clustering_sequence
+
+    def fit(self):
+        self.hierarchical_clustering_sequence = self._divisive_sequence(
+            self.full_coreset_df, self.vector_columns, self.weight_column
+        )
+
+        self._get_linkage_matrix(self.hierarchical_clustering_sequence[0])
+
+        self.cost_at_iterations = self.get_divisive_cluster_cost()
+
+        self.cost = sum(self.cost_at_iterations)
 
 
 class DivisiveClusteringVQA(DivisiveClustering):
     def __init__(
         self,
+        coreset_df: pd.DataFrame,
+        vector_columns: List[str],
+        weights_column: str,
         circuit_depth: int,
         max_iterations: int,
         max_shots: int,
@@ -320,6 +358,7 @@ class DivisiveClusteringVQA(DivisiveClustering):
         sort_by_descending: Optional[bool] = True,
         coreset_to_graph_metric: Optional[str] = "dot",
     ) -> None:
+        super().__init__(coreset_df, vector_columns, weights_column)
         self.circuit_depth = circuit_depth
         self.max_iterations = max_iterations
         self.max_shots = max_shots
@@ -395,8 +434,8 @@ class DivisiveClusteringVQA(DivisiveClustering):
 
 
 class DivisiveClusteringRandom(DivisiveClustering):
-    def __init__(self) -> None:
-        pass
+    def __init__(self, coreset_df, vector_columns, weights_column) -> None:
+        super().__init__(coreset_df, vector_columns, weights_column)
 
     def run_divisive_clustering(
         self,
@@ -421,8 +460,8 @@ class DivisiveClusteringRandom(DivisiveClustering):
 
 
 class DivisiveClusteringKMeans(DivisiveClustering):
-    def __init__(self) -> None:
-        pass
+    def __init__(self, coreset_df, vector_columns, weights_column) -> None:
+        super().__init__(coreset_df, vector_columns, weights_column)
 
     def run_divisive_clustering(
         self,
@@ -444,8 +483,14 @@ class DivisiveClusteringKMeans(DivisiveClustering):
 
 class DivisiveClusteringMaxCut(DivisiveClustering):
     def __init__(
-        self, normalize_vectors: bool = True, coreset_to_graph_metric: str = "dot"
+        self,
+        coreset_df,
+        vector_columns,
+        weights_column,
+        normalize_vectors: bool = True,
+        coreset_to_graph_metric: str = "dot",
     ) -> None:
+        super().__init__(coreset_df, vector_columns, weights_column)
         self._normalize_vectors = normalize_vectors
         self._coreset_to_graph_metric = coreset_to_graph_metric
 
