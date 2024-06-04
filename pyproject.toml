@@ -65,12 +65,30 @@ type = "input"
 name = "footer"
 message = "Footer. Information about Breaking Changes and \n reference issues that this commit closes: (press [enter] to skip)\n" 
 
+[tool.mypy]
+pretty = true
+strict = true
+python_version = "3.12"
+check_untyped_defs = true
+ignore_missing_imports = true
+plugins = ["pandera.mypy", "pydantic.mypy"]
+
+[tool.pytest.ini_options]
+addopts = "--verbosity=2"
+pythonpath = ["src"]
+
 [tool.ruff]
 fix = true
 indent-width = 4
-line-length = 100
+line-length = 88
 target-version = "py312"
-extend-include = ["*.ipynb"]
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "I001", "I"]
+
+[tool.ruff.lint.isort]
+order-by-type = true
+section-order = ["future", "standard-library", "first-party", "local-folder", "third-party"]
 
 
 [tool.ruff.format]
@@ -81,3 +99,5 @@ convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["D100", "D103"]
+
+

@@ -1,14 +1,14 @@
 from abc import ABC, abstractmethod
 
+# TODO: remove this part
+from bigdatavqa.coreset import Coreset
+
 import cudaq
 import numpy as np
 from cudaq import spin
 from numpy.linalg import inv
 from sklearn.mixture import GaussianMixture
 from tqdm import tqdm
-
-# TODO: remove this part
-from bigdatavqa.coreset import Coreset
 
 
 class GMMClustering(ABC):
