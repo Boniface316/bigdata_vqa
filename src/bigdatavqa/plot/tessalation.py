@@ -1,35 +1,14 @@
 from typing import List, Optional, Tuple
 
 import numpy as np
-import pandas as pd
 from matplotlib import pyplot as plt
 from scipy.spatial import Voronoi
 
 
 class Voironi_Tessalation:
-    def __init__(
-        self,
-        coreset_df: pd.DataFrame,
-        clusters: np.ndarray,
-        colors: List[str],
-        tesslation_by_cluster: Optional[bool] = False,
-    ) -> None:
-        coreset_df["cluster"] = clusters
-
-        if tesslation_by_cluster:
-            cluster_means = coreset_df.groupby("cluster")[["X", "Y"]].mean()
-            coreset_df = cluster_means.reset_index()
-            coreset_df["cluster"] = [i for i in range(len(coreset_df))]
-
-        coreset_df["color"] = [colors[i] for i in coreset_df.cluster]
-
-        points = coreset_df[["X", "Y"]].to_numpy()
-
-        self.coreset_df = coreset_df
-
-        self.voronoi = Voronoi(points)
-
-    def voronoi_finite_polygons_2d(self, radius: Optional[float] = None) -> Tuple[List, np.ndarray]:
+    def _voronoi_finite_polygons_2d(
+        self, radius: Optional[float] = None
+    ) -> Tuple[List, np.ndarray]:
         """
         Creates the Voronoi regions and vertices for 2D data.
 
@@ -51,7 +30,9 @@ class Voironi_Tessalation:
             radius = self.voronoi.points.ptp().max()
 
         all_ridges = {}
-        for (p1, p2), (v1, v2) in zip(self.voronoi.ridge_points, self.voronoi.ridge_vertices):
+        for (p1, p2), (v1, v2) in zip(
+            self.voronoi.ridge_points, self.voronoi.ridge_vertices
+        ):
             all_ridges.setdefault(p1, []).append((p2, v1, v2))
             all_ridges.setdefault(p2, []).append((p1, v1, v2))
 
@@ -95,31 +76,38 @@ class Voironi_Tessalation:
 
     def plot_voironi(
         self,
-        plot_title: Optional[str] = "Voronoi Tessalation",
+        clusters: np.ndarray,
+        colors: List[str],
+        plot_title: str = "Voronoi Tessalation",
         show_annotation: bool = False,
         show_scatters: bool = False,
     ):
-        regions, vertices = self.voronoi_finite_polygons_2d()
+        coreset_df = self.full_coreset_df.copy()
+        coreset_df["cluster"] = clusters
+        coreset_df["color"] = [colors[i] for i in coreset_df.cluster]
+
+        self.voronoi = Voronoi(coreset_df[self.vector_columns].to_numpy())
+        regions, vertices = self._voronoi_finite_polygons_2d()
         fig, ax = plt.subplots(figsize=(8, 8))
         fig.tight_layout(pad=10)
 
         for j, region in enumerate(regions):
             polygon = vertices[region]
-            color = self.coreset_df.color[j]
+            color = coreset_df.color[j]
             breakpoint()
             plt.fill(*zip(*polygon), alpha=0.4, color=color, linewidth=0)
             if show_annotation:
                 plt.annotate(
-                    self.coreset_df.Name[j],
-                    (self.coreset_df.X[j] + 0.2, self.coreset_df.Y[j]),
+                    coreset_df.Name[j],
+                    (coreset_df.X[j] + 0.2, coreset_df.Y[j]),
                     fontsize=10,
                 )
 
         if show_scatters:
-            plt.plot(self.coreset_df.X, self.coreset_df.Y, "ko")
+            plt.plot(coreset_df.X, coreset_df.Y, "ko")
 
-        plt.xlim(min(self.coreset_df.X) - 1, max(self.coreset_df.X) + 1)
-        plt.ylim(min(self.coreset_df.Y) - 1, max(self.coreset_df.Y) + 1)
+        plt.xlim(min(coreset_df.X) - 1, max(coreset_df.X) + 1)
+        plt.ylim(min(coreset_df.Y) - 1, max(coreset_df.Y) + 1)
         plt.xlabel("x")
         plt.ylabel("y")
         plt.title(plot_title)

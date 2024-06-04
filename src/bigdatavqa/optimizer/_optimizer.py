@@ -17,6 +17,7 @@ def get_optimizer_for_VQE(
     Returns:
         tuple(cudaq.optimizers.optimizer, int): Optimizer and parameter count
     """
+
     parameter_count = 4 * kwargs["circuit_depth"] * kwargs["qubits"]
     initial_params = np.random.uniform(-np.pi / 8.0, np.pi / 8.0, parameter_count)
     optimizer.initial_parameters = initial_params
@@ -41,6 +42,8 @@ def get_optimizer_for_QAOA(
     """
 
     parameter_count = 2 * kwargs["circuit_depth"]
-    optimizer.initial_parameters = np.random.uniform(-np.pi / 8.0, np.pi / 8.0, parameter_count)
+    optimizer.initial_parameters = np.random.uniform(
+        -np.pi / 8.0, np.pi / 8.0, parameter_count
+    )
     optimizer.max_iterations = max_iterations
     return optimizer, parameter_count

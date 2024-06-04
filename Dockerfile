@@ -1,17 +1,13 @@
-# FROM nvcr.io/nvidia/cuquantum-appliance:22.11
-FROM nvcr.io/nvidia/cuda-quantum:0.3.0
+
+FROM nvcr.io/nvidia/quantum/cuda-quantum:0.7.1
 
 USER root
 
 WORKDIR /workspace/
 
-COPY . /workspace/vqa/
-
 RUN sudo apt-get update -y && \
     sudo apt-get install -y openssh-server sysstat && \
     sudo apt-get install cmake -y
-
-RUN cd vqa && pip install -e .
 
 RUN pip install jupyterthemes && \
     jt -t oceans16 -T -N -kl -cursw 3 -cursc r -cellw 88% -T -N && \
