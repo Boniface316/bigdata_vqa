@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 
-# TODO: remove this part
 from bigdatavqa.coreset import Coreset
 
 import cudaq
@@ -16,9 +15,11 @@ class GMMClustering(ABC):
         self.normalize_vectors = normalize_vectors
         self.cost = None
 
-    def preprocess_data(self, corese_df, vector_columns, weight_columns, normalize_vectors=True):
-        coreset_vectors = corese_df[vector_columns].to_numpy()
-        coreset_weights = corese_df[weight_columns].to_numpy()
+    def preprocess_data(
+        self, coreset_df, vector_columns, weight_columns, normalize_vectors=True
+    ):
+        coreset_vectors = coreset_df[vector_columns].to_numpy()
+        coreset_weights = coreset_df[weight_columns].to_numpy()
 
         if normalize_vectors:
             coreset_vectors = Coreset.normalize_array(coreset_vectors, True)
@@ -46,7 +47,12 @@ class GMMClustering(ABC):
 
     @abstractmethod
     def get_labels(
-        self, coreset_df, coreset_vectors, coreset_weights, vector_columns, weight_columns
+        self,
+        coreset_df,
+        coreset_vectors,
+        coreset_weights,
+        vector_columns,
+        weight_columns,
     ):
         pass
 
@@ -127,7 +133,9 @@ class GMMClusteringVQA(GMMClustering):
         T = np.zeros((columns, columns))
         mu = np.average(coreset_vectors, axis=0, weights=coreset_weights)
         for i in range(coreset_size):
-            T += coreset_weights[i] * np.outer((coreset_vectors[i] - mu), (coreset_vectors[i] - mu))
+            T += coreset_weights[i] * np.outer(
+                (coreset_vectors[i] - mu), (coreset_vectors[i] - mu)
+            )
         return T
 
     def create_pauli_operators(self, coreset_vectors, coreset_weights):
@@ -189,7 +197,13 @@ class GMMClusteringVQA(GMMClustering):
         return [([pauli, weight]) for pauli, weight in zip(paulis, pauli_weights)]
 
     def get_labels(
-        self, coreset_df, coreset_vectors, coreset_weights, vector_columns, *args, **kwargs
+        self,
+        coreset_df,
+        coreset_vectors,
+        coreset_weights,
+        vector_columns,
+        *args,
+        **kwargs,
     ):
         optimizer, parameter_count = self.optimizer_function(
             self.optimizer,
@@ -232,7 +246,9 @@ class GMMClusteringVQA(GMMClustering):
         bitstring = self.counts.most_probable()
         bitstring = [int(i) for i in bitstring]
         coreset_df["k"] = bitstring
-        self.cluster_centers = self.get_cluster_centroids_from_bitstring(coreset_df, vector_columns)
+        self.cluster_centers = self.get_cluster_centroids_from_bitstring(
+            coreset_df, vector_columns
+        )
 
         return bitstring
 
@@ -254,7 +270,9 @@ class GMMClusteringRandom(GMMClustering):
 
         bitstring = [int(i) for i in bitstring]
         coreset_df["k"] = bitstring
-        self.cluster_centers = self.get_cluster_centroids_from_bitstring(coreset_df, vector_columns)
+        self.cluster_centers = self.get_cluster_centroids_from_bitstring(
+            coreset_df, vector_columns
+        )
 
         return [int(i) for i in bitstring]
 
@@ -264,7 +282,12 @@ class GMMClusteringMaxCut(GMMClustering):
         super().__init__(normalize_vectors)
 
     def get_labels(
-        self, coreset_df, coreset_vectors, coreset_weights, vector_columns, weight_columns
+        self,
+        coreset_df,
+        coreset_vectors,
+        coreset_weights,
+        vector_columns,
+        weight_columns,
     ):
         bitstring_length = len(coreset_vectors)
         bitstrings = self.create_all_possible_bitstrings(bitstring_length)
@@ -275,8 +298,10 @@ class GMMClusteringMaxCut(GMMClustering):
 
         for bitstring in tqdm(bitstrings):
             bitstring = [int(i) for i in bitstring]
-            current_bitstring_cost, cluster_centers = self._get_bistring_cost_and_centroids(
-                coreset_df, bitstring, vector_columns
+            current_bitstring_cost, cluster_centers = (
+                self._get_bistring_cost_and_centroids(
+                    coreset_df, bitstring, vector_columns
+                )
             )
 
             if current_bitstring_cost < self.cost:
@@ -289,7 +314,9 @@ class GMMClusteringMaxCut(GMMClustering):
     def _get_bistring_cost_and_centroids(self, coreset_df, bitstring, vector_columns):
         coreset_df["k"] = bitstring
         current_bitstring_cost = 0
-        centroids = self.get_cluster_centroids_from_bitstring(coreset_df, vector_columns)
+        centroids = self.get_cluster_centroids_from_bitstring(
+            coreset_df, vector_columns
+        )
 
         for k, grouped_data in coreset_df.groupby("k"):
             grouped_data_vector = grouped_data[vector_columns].to_numpy()
@@ -301,7 +328,10 @@ class GMMClusteringMaxCut(GMMClustering):
         return current_bitstring_cost, centroids
 
     def create_all_possible_bitstrings(self, bitstring_length):
-        return [format(i, f"0{bitstring_length}b") for i in range(1, (2**bitstring_length) - 1)]
+        return [
+            format(i, f"0{bitstring_length}b")
+            for i in range(1, (2**bitstring_length) - 1)
+        ]
 
 
 class GMMClusteringClassicalGMM(GMMClustering):
@@ -322,6 +352,8 @@ class GMMClusteringClassicalGMM(GMMClustering):
         labels = gmm.fit_predict(coreset_vectors)
         coreset_df["k"] = labels
 
-        self.cluster_centers = self.get_cluster_centroids_from_bitstring(coreset_df, vector_columns)
+        self.cluster_centers = self.get_cluster_centroids_from_bitstring(
+            coreset_df, vector_columns
+        )
 
         return labels
