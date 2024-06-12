@@ -2,12 +2,16 @@ from abc import ABC, abstractmethod
 
 from bigdatavqa.coreset import Coreset
 
-import numpy as np
-
 import cudaq
+import numpy as np
 
 
 class BigDataVQA(ABC):
+    def __init__(self, full_coreset_df, vector_columns, weights_column):
+        self.full_coreset_df = full_coreset_df
+        self.vector_columns = vector_columns
+        self.weights_column = weights_column
+
     def preprocess_data(
         self, coreset_df, vector_columns, weight_columns, normalize_vectors=True
     ):
@@ -57,7 +61,7 @@ class BigDataVQA(ABC):
 
         return cumulative_cost
 
-    def _create_all_possible_bitstrings(self, bitstring_length):
+    def create_all_possible_bitstrings(self, bitstring_length):
         return [
             format(i, f"0{bitstring_length}b")
             for i in range(1, (2**bitstring_length) - 1)
