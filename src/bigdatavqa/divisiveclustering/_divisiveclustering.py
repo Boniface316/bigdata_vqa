@@ -19,8 +19,16 @@ class DivisiveClustering(BigDataVQA, Dendrogram, Voironi_Tessalation):
         full_coreset_df: pd.DataFrame,
         vector_columns: List[str],
         weights_column: str,
+        normalize_vectors: Optional[bool] = True,
+        number_of_qubits_representing_data: Optional[int] = 1,
     ) -> None:
-        super().__init__(full_coreset_df, vector_columns, weights_column)
+        super().__init__(
+            full_coreset_df,
+            vector_columns,
+            weights_column,
+            normalize_vectors,
+            number_of_qubits_representing_data,
+        )
         self.linkage_matrix = []
 
     @property
