@@ -1,28 +1,40 @@
-import random
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
+from .._base import BigDataVQA
 from ..coreset import Coreset
 
-import cudaq
+import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from sklearn.cluster import KMeans
 from tqdm import tqdm
 
 
-class K3MeansClustering(ABC):
+class K3MeansClustering(BigDataVQA):
     def __init__(
-        self, normalize_vectors: bool = True, number_of_qubits_representing_data: int = 2
+        self,
+        full_coreset_df,
+        vector_columns,
+        weights_columns,
+        normalize_vectors: bool = True,
+        number_of_qubits_representing_data: int = 2,
     ) -> None:
-        self.normalize_vectors = normalize_vectors
-        self.number_of_qubits_representing_data = number_of_qubits_representing_data
+        super().__init__(
+            full_coreset_df,
+            vector_columns,
+            weights_columns,
+            normalize_vectors,
+            number_of_qubits_representing_data,
+        )
+        self.cluster_centers = None
+        self.labels = None
+        self.cost = None
 
     @abstractmethod
-    def get_cluster_centers(self, coreset_df, vector_columns, weight_columns):
+    def run_k3_clustering(self):
         pass
 
     @abstractmethod
-    def get_optimal_bitstring(self, coreset_graph):
+    def _get_best_bitstring(self, coreset_graph):
         pass
 
     def get_partition_from_bitstring(self, bitstring, coreset_graph):
@@ -41,57 +53,80 @@ class K3MeansClustering(ABC):
 
         return [s1, s2, s3]
 
-    def preprocess_data(self, corese_df, vector_columns, weight_columns, normalize_vectors=True):
-        coreset_vectors = corese_df[vector_columns].to_numpy()
-        coreset_weights = corese_df[weight_columns].to_numpy()
+    def fit(self):
+        self.partition = self.run_k3_clustering()
+        self.partition = [
+            [int(x / self.number_of_qubits_representing_data) for x in sublist]
+            for sublist in self.partition
+        ]
+        if self.cluster_centers is None:
+            self.cluster_centers = self._get_cluster_centers_from_partition(
+                self.partition
+            )
+        if self.labels is None:
+            self.labels = self.get_lables_from_partition(
+                self.full_coreset_df, self.partition
+            )
+            self.full_coreset_df["label"] = self.labels
+        if self.cost is None:
+            self.cost = self.get_cost_using_kmeans_approach(
+                self.full_coreset_df, self.cluster_centers
+            )
 
-        if normalize_vectors:
-            coreset_vectors = Coreset.normalize_array(coreset_vectors, True)
-            coreset_weights = Coreset.normalize_array(coreset_weights)
+    def get_lables_from_partition(self, coreset_df, partition):
+        labels = [0] * len(coreset_df)
+        for i, cluster in enumerate(partition):
+            for vertex in cluster:
+                labels[vertex] = i
 
-        return coreset_vectors, coreset_weights
+        return labels
 
-    @staticmethod
-    def get_3means_cost(data_sets, cluster_centers):
-        cost = 0
-        labels = []
-
-        for row_data in data_sets:
-            dist = []
-            for center in cluster_centers:
-                dist.append(np.linalg.norm(row_data - center) ** 2)
-
-            labels.append(np.argmin(dist))
-            cost += min(dist)
-
-        return cost, labels
-
-    def get_cluster_centers_from_partition(
-        self, partition, coreset_df, vector_columns, weight_columns
-    ):
+    def _get_cluster_centers_from_partition(self, partition):
         coreset_vectors, coreset_weights = self.preprocess_data(
-            coreset_df, vector_columns, weight_columns, False
+            self.full_coreset_df, self.vector_columns, self.weights_column, False
         )
 
-        cluster_size = len(vector_columns)
+        cluster_size = len(self.vector_columns)
         clusters_centers = np.array([np.zeros(cluster_size)] * 3)
 
         W = np.sum(coreset_weights) / 3
 
-        for i in range(len(partition)):
-            for vertex in partition[i]:
-                weight = (
-                    coreset_weights[int(vertex / self.number_of_qubits_representing_data)]
-                    * coreset_vectors[int(vertex / self.number_of_qubits_representing_data)]
-                )
-                clusters_centers[i] += weight * (1 / W)
+        for cluster, vertices in enumerate(partition):
+            for vertex in vertices:
+                weight = coreset_weights[vertex] * coreset_vectors[vertex]
+                clusters_centers[cluster] += weight * (1 / W)
 
         return clusters_centers
+
+    def plot(self):
+        plt.scatter(
+            self.full_coreset_df["X"],
+            self.full_coreset_df["Y"],
+            c=self.full_coreset_df["label"],
+            label="Coreset",
+            cmap="viridis",
+        )
+        plt.scatter(
+            self.cluster_centers[:, 0],
+            self.cluster_centers[:, 1],
+            label="Centers",
+            color="b",
+            marker="*",
+        )
+
+        plt.xlabel("X")
+        plt.ylabel("Y")
+        plt.title("Raw data and its best coreset using BFL16")
+        plt.legend()
+        plt.show()
 
 
 class K3MeansClusteringVQA(K3MeansClustering):
     def __init__(
         self,
+        full_coreset_df,
+        vector_columns,
+        weights_columns,
         qubits,
         create_circuit,
         circuit_depth,
@@ -104,7 +139,13 @@ class K3MeansClusteringVQA(K3MeansClustering):
         max_shots,
         coreset_to_graph_metric="dist",
     ) -> None:
-        super().__init__(normalize_vectors, number_of_qubits_representing_data)
+        super().__init__(
+            full_coreset_df,
+            vector_columns,
+            weights_columns,
+            normalize_vectors,
+            number_of_qubits_representing_data,
+        )
         self.qubits = qubits
         self.create_Hamiltonian = create_Hamiltonian
         self.optimizer_function = optimizer_function
@@ -115,28 +156,23 @@ class K3MeansClusteringVQA(K3MeansClustering):
         self.max_shots = max_shots
         self.coreset_to_graph_metric = coreset_to_graph_metric
 
-    def get_cluster_centers(self, coreset_df, vector_columns, weight_columns):
+    def run_k3_clustering(self):
         coreset_vectors, coreset_weights = self.preprocess_data(
-            coreset_df, vector_columns, weight_columns, self.normalize_vectors
+            self.full_coreset_df,
+            self.vector_columns,
+            self.weights_column,
+            self.normalize_vectors,
         )
 
-        coreset_graph = Coreset.coreset_to_graph(
+        G = Coreset.coreset_to_graph(
             coreset_vectors,
             coreset_weights,
             self.coreset_to_graph_metric,
             self.number_of_qubits_representing_data,
         )
 
-        bitstring = self.get_optimal_bitstring(coreset_graph)
+        Hamiltonian = self.create_Hamiltonian(G)
 
-        partition = self.get_partition_from_bitstring(bitstring, coreset_graph)
-
-        return self.get_cluster_centers_from_partition(
-            partition, coreset_df, vector_columns, weight_columns
-        )
-
-    def get_optimal_bitstring(self, coreset_graph):
-        Hamiltonian = self.create_Hamiltonian(coreset_graph)
         optimizer, parameter_count = self.optimizer_function(
             self.optimizer,
             self.max_iterations,
@@ -146,79 +182,82 @@ class K3MeansClusteringVQA(K3MeansClustering):
 
         kernel = self.create_circuit(self.qubits, self.circuit_depth)
 
-        def objective_function(
-            parameter_vector: list[float],
-            hamiltonian=Hamiltonian,
-            kernel=kernel,
-        ) -> tuple[float, list[float]]:
-            get_result = lambda parameter_vector: cudaq.observe(
-                kernel, hamiltonian, parameter_vector, self.qubits, self.circuit_depth
-            ).expectation()
-
-            cost = get_result(parameter_vector)
-
-            return cost
-
-        energy, optimal_parameters = optimizer.optimize(
-            dimensions=parameter_count, function=objective_function
+        counts = self.get_counts(
+            self.qubits, Hamiltonian, kernel, optimizer, parameter_count
         )
 
-        counts = cudaq.sample(
-            kernel, optimal_parameters, self.qubits, self.circuit_depth, shots_count=self.max_shots
-        )
+        self.bitstring = self._get_best_bitstring(counts)
 
+        return self.get_partition_from_bitstring(self.bitstring, G)
+
+    def _get_best_bitstring(self, counts):
         return counts.most_probable()
 
 
 class K3MeansClusteringRandom(K3MeansClustering):
     def __init__(
-        self, normalize_vectors: bool = True, number_of_qubits_representing_data: int = 2
+        self,
+        full_coreset_df,
+        vector_columns,
+        weights_columns,
+        normalize_vectors: bool = True,
+        number_of_qubits_representing_data: int = 2,
     ) -> None:
-        super().__init__(normalize_vectors, number_of_qubits_representing_data)
-
-    def get_cluster_centers(self, coreset_df, vector_columns, weight_columns):
-        coreset_vectors, coreset_weights = self.preprocess_data(
-            coreset_df, vector_columns, weight_columns, self.normalize_vectors
+        super().__init__(
+            full_coreset_df,
+            vector_columns,
+            weights_columns,
+            normalize_vectors,
+            number_of_qubits_representing_data,
         )
 
-        coreset_graph = Coreset.coreset_to_graph(
+    def run_k3_clustering(self):
+        coreset_vectors, coreset_weights = self.preprocess_data(
+            self.full_coreset_df,
+            self.vector_columns,
+            self.weights_column,
+            self.normalize_vectors,
+        )
+
+        G = Coreset.coreset_to_graph(
             coreset_vectors,
             coreset_weights,
             "dist",
             self.number_of_qubits_representing_data,
         )
 
-        bitstring = self.get_optimal_bitstring(coreset_graph)
+        bitstring = self.generate_random_bitstring(coreset_vectors)
+        bitstring = "".join([str(x) for x in bitstring])
 
-        partition = self.get_partition_from_bitstring(bitstring, coreset_graph)
+        return self.get_partition_from_bitstring(bitstring, G)
 
-        return self.get_cluster_centers_from_partition(
-            partition, coreset_df, vector_columns, weight_columns
-        )
-
-    def get_optimal_bitstring(self, coreset_graph):
-        bitstring_length = coreset_graph.number_of_nodes() * self.number_of_qubits_representing_data
-
-        bitstring_not_accepted = True
-        while bitstring_not_accepted:
-            bitstring = np.random.randint(0, 2, bitstring_length)
-            if bitstring.sum() == 0 or bitstring.sum() == len(bitstring):
-                bitstring_not_accepted = True
-            else:
-                bitstring_not_accepted = False
-
-        return "".join([str(i) for i in bitstring])
+    def _get_best_bitstring(self):
+        pass
 
 
 class K3MeansClusteringMaxCut(K3MeansClustering):
     def __init__(
-        self, normalize_vectors: bool = True, number_of_qubits_representing_data: int = 2
+        self,
+        full_coreset_df,
+        vector_columns,
+        weights_columns,
+        normalize_vectors: bool = True,
+        number_of_qubits_representing_data: int = 2,
     ) -> None:
-        super().__init__(normalize_vectors, number_of_qubits_representing_data)
+        super().__init__(
+            full_coreset_df,
+            vector_columns,
+            weights_columns,
+            normalize_vectors,
+            number_of_qubits_representing_data,
+        )
 
-    def get_cluster_centers(self, coreset_df, vector_columns, weight_columns):
+    def run_k3_clustering(self):
         coreset_vectors, coreset_weights = self.preprocess_data(
-            coreset_df, vector_columns, weight_columns, self.normalize_vectors
+            self.full_coreset_df,
+            self.vector_columns,
+            self.weights_column,
+            self.normalize_vectors,
         )
 
         coreset_graph = Coreset.coreset_to_graph(
@@ -228,66 +267,85 @@ class K3MeansClusteringMaxCut(K3MeansClustering):
             self.number_of_qubits_representing_data,
         )
 
-        self.get_optimal_bitstring(coreset_graph, coreset_df, vector_columns, weight_columns)
+        bitstring = self._get_best_bitstring(
+            coreset_graph,
+        )
 
-        return self.best_centers
+        return self.get_partition_from_bitstring(bitstring, coreset_graph)
 
-    def get_optimal_bitstring(self, coreset_graph, coreset_df, vector_columns, weight_columns):
-        bitstring_length = coreset_graph.number_of_nodes() * self.number_of_qubits_representing_data
+    def _get_best_bitstring(self, coreset_graph):
+        coreset_df = self.full_coreset_df.copy()
+
+        bitstring_length = (
+            coreset_graph.number_of_nodes() * self.number_of_qubits_representing_data
+        )
 
         bitstrings = self.create_all_possible_bitstrings(bitstring_length)
 
         lowest_cost = np.inf
         best_bitstring = None
-        self.best_centers = None
 
         for bitstring in tqdm(bitstrings):
             current_bitstring_cost = 0
-            partitions = self.get_partition_from_bitstring(bitstring, coreset_graph)
-            centers = self.get_cluster_centers_from_partition(
-                coreset_df, partitions, vector_columns
+            partition = self.get_partition_from_bitstring(bitstring, coreset_graph)
+            partition = [
+                [int(x / self.number_of_qubits_representing_data) for x in sublist]
+                for sublist in partition
+            ]
+            cluster_centers = self._get_cluster_centers_from_partition(partition)
+
+            labels = self.get_lables_from_partition(self.full_coreset_df, partition)
+
+            coreset_df["label"] = labels
+            current_bitstring_cost = self.get_cost_using_kmeans_approach(
+                coreset_df, cluster_centers
             )
-            for k, grouped_data in coreset_df.groupby("k"):
-                current_bitstring_cost += self.get_3means_cost(
-                    grouped_data[vector_columns].to_numpy(), [centers[k]]
-                )[0]
 
             if current_bitstring_cost < lowest_cost:
                 lowest_cost = current_bitstring_cost
                 best_bitstring = bitstring
-                self.best_centers = centers
+                self.cluster_centers = cluster_centers
+                self.labels = labels
+                self.full_coreset_df["label"] = labels
+                self.cost = current_bitstring_cost
 
         return best_bitstring
 
-    def create_all_possible_bitstrings(self, bitstring_length):
-        return [format(i, f"0{bitstring_length}b") for i in range(1, (2**bitstring_length) - 1)]
-
-    def get_cluster_centers_from_partition(self, coreset_df, partitions, vector_columns):
-        coreset_df["k"] = None
-
-        partitions = [partition for partition in partitions if partition]
-
-        for k, partition in enumerate(partitions):
-            index_values = np.array(partition) / 2
-            coreset_df.loc[index_values, "k"] = k
-
-        columns_to_include = vector_columns + ["k"]
-
-        return coreset_df[columns_to_include].groupby("k").mean().values
-
 
 class K3MeansClusteringKMeans(K3MeansClustering):
-    def __init__(self, normalize_vectors: bool = True, number_of_qubits_representing_data: int = 2):
-        super().__init__(normalize_vectors, number_of_qubits_representing_data)
-
-    def get_cluster_centers(self, coreset_df, vector_columns, weight_columns):
-        data_set = coreset_df.copy()
-        data_set["weights"] = 0
-        coreset_vectors, _ = self.preprocess_data(
-            data_set, vector_columns, weight_columns, self.normalize_vectors
+    def __init__(
+        self,
+        full_coreset_df,
+        vector_columns,
+        weights_columns,
+        normalize_vectors: bool = True,
+        number_of_qubits_representing_data: int = 2,
+    ) -> None:
+        super().__init__(
+            full_coreset_df,
+            vector_columns,
+            weights_columns,
+            normalize_vectors,
+            number_of_qubits_representing_data,
         )
 
-        return KMeans(n_clusters=3).fit(coreset_vectors).cluster_centers_
+    def run_k3_clustering(self):
+        coreset_vectors, _ = self.preprocess_data(
+            self.full_coreset_df,
+            self.vector_columns,
+            self.weights_column,
+            self.normalize_vectors,
+        )
 
-    def get_optimal_bitstring(self, coreset_graph):
-        return None
+        self._KMeans = KMeans(n_clusters=3).fit(coreset_vectors)
+
+        return [
+            list(
+                np.where(self._KMeans.labels_ == i)[0]
+                * self.number_of_qubits_representing_data
+            )
+            for i in range(3)
+        ]
+
+    def _get_best_bitstring(self, coreset_graph):
+        pass

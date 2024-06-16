@@ -7,10 +7,19 @@ import numpy as np
 
 
 class BigDataVQA(ABC):
-    def __init__(self, full_coreset_df, vector_columns, weights_column):
+    def __init__(
+        self,
+        full_coreset_df,
+        vector_columns,
+        weights_column,
+        mormalize_vectors,
+        number_of_qubits_representing_data,
+    ):
         self.full_coreset_df = full_coreset_df
         self.vector_columns = vector_columns
         self.weights_column = weights_column
+        self.normalize_vectors = mormalize_vectors
+        self.number_of_qubits_representing_data = number_of_qubits_representing_data
 
     def preprocess_data(
         self, coreset_df, vector_columns, weight_columns, normalize_vectors=True
@@ -79,19 +88,14 @@ class BigDataVQA(ABC):
 
             return get_result(parameter_vector)
 
-        energy, optimal_parameters = optimizer.optimize(
+        self.energy, self.optimal_parameters = optimizer.optimize(
             dimensions=parameter_count, function=objective_function
         )
 
         return cudaq.sample(
             kernel,
-            optimal_parameters,
+            self.optimal_parameters,
             qubits,
             self.circuit_depth,
             shots_count=self.max_shots,
         )
-
-    def get_Hamiltonian(self, G):
-        qubits = len(G.nodes)
-        Hamiltonian = self.create_Hamiltonian(G)
-        return Hamiltonian
