@@ -235,6 +235,45 @@ class K3MeansClusteringRandom(K3MeansClustering):
         pass
 
 
+class K3MeansClusteringKMeans(K3MeansClustering):
+    def __init__(
+        self,
+        full_coreset_df,
+        vector_columns,
+        weights_columns,
+        normalize_vectors: bool = True,
+        number_of_qubits_representing_data: int = 2,
+    ) -> None:
+        super().__init__(
+            full_coreset_df,
+            vector_columns,
+            weights_columns,
+            normalize_vectors,
+            number_of_qubits_representing_data,
+        )
+
+    def run_k3_clustering(self):
+        coreset_vectors, _ = self.preprocess_data(
+            self.full_coreset_df,
+            self.vector_columns,
+            self.weights_column,
+            self.normalize_vectors,
+        )
+
+        self._KMeans = KMeans(n_clusters=3).fit(coreset_vectors)
+
+        return [
+            list(
+                np.where(self._KMeans.labels_ == i)[0]
+                * self.number_of_qubits_representing_data
+            )
+            for i in range(3)
+        ]
+
+    def _get_best_bitstring(self, coreset_graph):
+        pass
+
+
 class K3MeansClusteringMaxCut(K3MeansClustering):
     def __init__(
         self,
@@ -310,42 +349,3 @@ class K3MeansClusteringMaxCut(K3MeansClustering):
                 self.cost = current_bitstring_cost
 
         return best_bitstring
-
-
-class K3MeansClusteringKMeans(K3MeansClustering):
-    def __init__(
-        self,
-        full_coreset_df,
-        vector_columns,
-        weights_columns,
-        normalize_vectors: bool = True,
-        number_of_qubits_representing_data: int = 2,
-    ) -> None:
-        super().__init__(
-            full_coreset_df,
-            vector_columns,
-            weights_columns,
-            normalize_vectors,
-            number_of_qubits_representing_data,
-        )
-
-    def run_k3_clustering(self):
-        coreset_vectors, _ = self.preprocess_data(
-            self.full_coreset_df,
-            self.vector_columns,
-            self.weights_column,
-            self.normalize_vectors,
-        )
-
-        self._KMeans = KMeans(n_clusters=3).fit(coreset_vectors)
-
-        return [
-            list(
-                np.where(self._KMeans.labels_ == i)[0]
-                * self.number_of_qubits_representing_data
-            )
-            for i in range(3)
-        ]
-
-    def _get_best_bitstring(self, coreset_graph):
-        pass
