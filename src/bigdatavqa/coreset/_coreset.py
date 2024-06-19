@@ -1,5 +1,6 @@
 import pickle
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Callable
+from abc import ABC, abstractmethod
 
 import networkx as nx
 import numpy as np
@@ -8,27 +9,23 @@ from sklearn.cluster import KMeans
 
 
 # TODO: refactor with abstract class
-class Coreset:
+class Coreset(ABC):
     # https://github.com/teaguetomesh/coresets/blob/ae69df4f52d683c54ab229489e5102b09378da86/kMeans/coreset.py
     def __init__(
         self,
         raw_data: np.ndarray,
         number_of_sampling_for_centroids: int,
         coreset_size: int,
-        number_of_coresets_to_evaluate: Optional[int] = 10,
-        coreset_method: Optional[str] = "BFL2",
-        k_value_for_BLK2: Optional[int] = 2,
+        number_of_coresets_to_evaluate: int,
+        sampling_method: Callable,
+        coresets_method: str,
     ) -> None:
         self._raw_data = raw_data
         self._coreset_size = coreset_size
         self._number_of_coresets_to_evaluate = number_of_coresets_to_evaluate
         self._number_of_sampling_for_centroids = number_of_sampling_for_centroids
-        self._k_value_for_BLK2 = k_value_for_BLK2
-
-        if coreset_method not in ["BFL2", "BLK2"]:
-            raise ValueError("Coreset method must be either BFL2 or BLK2.")
-        else:
-            self._coreset_method = coreset_method
+        self._sampling_method = sampling_method
+        self._coreset_method = coresets_method
 
     @property
     def raw_data(self) -> np.ndarray:
@@ -51,8 +48,8 @@ class Coreset:
         return self._coreset_method
 
     @property
-    def k_value_for_BLK2(self) -> int:
-        return self._k_value_for_BLK2
+    def sampling_method_name(self) -> Callable:
+        return self.sampling_method.sampling_method_name
 
     @raw_data.setter
     def raw_data(self, raw_data: np.ndarray) -> None:
@@ -78,40 +75,7 @@ class Coreset:
     def coreset_method(self, coreset_method: str) -> None:
         self._coreset_method = coreset_method
 
-    @k_value_for_BLK2.setter
-    def k_value_for_BLK2(self, k_value_for_BLK2: int) -> None:
-        self._k_value_for_BLK2 = k_value_for_BLK2
-
-    def get_best_coresets(self) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Get the best coreset vectors and weights for a given data.
-
-        Returns:
-            Tuple[np.ndarray, np.ndarray]: The coreset vectors and weights.
-        """
-
-        centroids = self.get_best_centroids()
-
-        if self._coreset_method == "BFL2":
-            print("Using BFL2 method to generate coresets")
-            coreset_vectors, coreset_weights = self.get_coresets_using_BFL2(centroids)
-
-        elif self._coreset_method == "BLK2":
-            print("Using BLK2 method to generate coresets")
-            coreset_vectors, coreset_weights = self.get_coresets_using_BLK2(centroids)
-        else:
-            raise ValueError("Coreset method must be either BFL2 or BLK2.")
-
-        coreset_vectors, coreset_weights = self.best_coreset_using_kmeans_cost(
-            coreset_vectors, coreset_weights
-        )
-
-        self.coreset_vectors = coreset_vectors
-        self.coreset_weights = coreset_weights
-
-        return (np.array(coreset_vectors), np.array(coreset_weights))
-
-    def get_coresets_using_BFL2(
+    def _get_coresets(
         self, centroids: List[np.ndarray]
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
@@ -127,11 +91,40 @@ class Coreset:
         coreset_vectors_list = []
         coreset_weights_list = []
         for i in range(self.number_of_coresets_to_evaluate):
-            coreset_vectors, coreset_weights = self.BFL2(centroids=centroids)
+            coreset_vectors, coreset_weights = (
+                self._get_coresets_using_selected_approach(centroids=centroids)
+            )
             coreset_vectors_list.append(coreset_vectors)
             coreset_weights_list.append(coreset_weights)
 
         return (coreset_vectors_list, coreset_weights_list)
+
+    @abstractmethod
+    def _get_coresets_using_selected_approach(
+        self, centroids: List[np.ndarray]
+    ) -> Tuple[List[np.ndarray], List[float]]:
+        pass
+
+    def get_best_coresets(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Get the best coreset vectors and weights for a given data.
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]: The coreset vectors and weights.
+        """
+
+        centroids = self.get_best_centroids()
+
+        coreset_vectors, coreset_weights = self._get_coresets(centroids)
+
+        coreset_vectors, coreset_weights = self.best_coreset_using_kmeans_cost(
+            coreset_vectors, coreset_weights
+        )
+
+        self.coreset_vectors = np.array(coreset_vectors)
+        self.coreset_weights = np.array(coreset_weights)
+
+        return (self.coreset_vectors, self.coreset_weights)
 
     def get_best_centroids(self) -> List[np.ndarray]:
         """
@@ -144,35 +137,15 @@ class Coreset:
 
         best_centroid_coordinates, best_centroid_cost = None, np.inf
 
-        for _ in range(self.number_of_sampling_for_centroids):
-            centroids = self.D2_sampling()
+        for _ in range(self._number_of_sampling_for_centroids):
+            centroids = self._sampling_method.sample(
+                self.coreset_size, self.raw_data, self.distance_to_centroids
+            )
             cost = self.get_cost(centroids)
             if cost < best_centroid_cost:
                 best_centroid_coordinates, best_centroid_cost = centroids, cost
 
         return best_centroid_coordinates
-
-    def D2_sampling(self) -> List[np.ndarray]:
-        """
-        Selects the centroids from the data points using the D2 sampling algorithm.
-
-        Returns:
-            List[np.ndarray]: The selected centroids as a list.
-        """
-
-        centroids = []
-        data_vectors = self.raw_data
-
-        centroids.append(data_vectors[np.random.choice(len(data_vectors))])
-
-        for _ in range(self.coreset_size - 1):
-            p = np.zeros(len(data_vectors))
-            for i, x in enumerate(data_vectors):
-                p[i] = self.distance_to_centroids(x, centroids)[0] ** 2
-            p = p / sum(p)
-            centroids.append(data_vectors[np.random.choice(len(data_vectors), p=p)])
-
-        return centroids
 
     def get_cost(self, centroids: Union[List[np.ndarray], np.ndarray]) -> float:
         """
@@ -217,68 +190,6 @@ class Coreset:
 
         return (minimum_distance, closest_index)
 
-    def BFL2(
-        self, centroids: Union[List[np.ndarray], np.ndarray]
-    ) -> Tuple[List[np.ndarray], List[float]]:
-        """
-        Performs Algorithm 2 from https://arxiv.org/pdf/1612.00889.pdf [BFL2]. This will pick the coreset vectors and its corresponding weights.
-
-        Args:
-            centroids (List): The centroids to use for the coreset generation.
-
-        Returns:
-            Tuple[List, List]: The coreset vectors and coreset weights.
-        """
-
-        number_of_data_points_close_to_a_cluster = {i: 0 for i in range(len(centroids))}
-        sum_distance_to_closest_cluster = 0.0
-        for data_instance in self.raw_data:
-            min_dist, closest_index = self.distance_to_centroids(
-                data_instance, centroids
-            )
-            number_of_data_points_close_to_a_cluster[closest_index] += 1
-            sum_distance_to_closest_cluster += min_dist**2
-
-        Prob = np.zeros(len(self._raw_data))
-        for i, p in enumerate(self._raw_data):
-            min_dist, closest_index = self.distance_to_centroids(p, centroids)
-            Prob[i] += min_dist**2 / (2 * sum_distance_to_closest_cluster)
-            Prob[i] += 1 / (
-                2
-                * len(centroids)
-                * number_of_data_points_close_to_a_cluster[closest_index]
-            )
-
-        if not (0.999 <= sum(Prob) <= 1.001):
-            raise ValueError(
-                "sum(Prob) = %s; the algorithm should automatically "
-                "normalize Prob by construction" % sum(Prob)
-            )
-        chosen_indices = np.random.choice(
-            len(self._raw_data), size=self._coreset_size, p=Prob
-        )
-        weights = [1 / (self._coreset_size * Prob[i]) for i in chosen_indices]
-
-        return ([self._raw_data[i] for i in chosen_indices], weights)
-
-    def kmeans_cost(
-        self, coreset_vectors: np.ndarray, sample_weight: Optional[np.ndarray] = None
-    ) -> float:
-        """
-        Compute the cost of coreset vectors using kmeans clustering.
-
-        Args:
-            coreset_vectors (np.ndarray): The coreset vectors.
-            sample_weight (np.ndarray): The sample weights.
-
-        Returns:
-            float: The cost of the kmeans clustering.
-
-        """
-
-        kmeans = KMeans(n_clusters=2).fit(coreset_vectors, sample_weight=sample_weight)
-        return self.get_cost(kmeans.cluster_centers_)
-
     def best_coreset_using_kmeans_cost(
         self, coreset_vectors: List[np.ndarray], coreset_weights: List[np.ndarray]
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -304,90 +215,23 @@ class Coreset:
         best_index = cost_coreset.index(np.min(cost_coreset))
         return (coreset_vectors[best_index], coreset_weights[best_index])
 
-    def get_coresets_using_BLK2(
-        self, centroids: Union[List[np.ndarray], np.ndarray]
-    ) -> Tuple[List[List[np.ndarray]], List[List[float]]]:
+    def kmeans_cost(
+        self, coreset_vectors: np.ndarray, sample_weight: Optional[np.ndarray] = None
+    ) -> float:
         """
-        Generates coreset vectors and weights using Algorithm 2.
+        Compute the cost of coreset vectors using kmeans clustering.
 
         Args:
-            centroids (List[np.ndarray]): The centroids to use for the coreset generation.
+            coreset_vectors (np.ndarray): The coreset vectors.
+            sample_weight (np.ndarray): The sample weights.
 
         Returns:
-            Tuple[List[List[np.ndarray]], List[List[float]]]: The coreset vectors and coreset weights.
+            float: The cost of the kmeans clustering.
+
         """
 
-        coreset_vectors_list = []
-        coreset_weights_list = []
-        for i in range(self.number_of_coresets_to_evaluate):
-            coreset_vectors, coreset_weights = self.BLK2(centroids=centroids)
-            coreset_vectors_list.append(coreset_vectors)
-            coreset_weights_list.append(coreset_weights)
-
-        return (coreset_vectors_list, coreset_weights_list)
-
-    def BLK2(
-        self,
-        centroids: Union[List[np.ndarray], np.ndarray],
-    ) -> Tuple[List[np.ndarray], List[float]]:
-        """
-        Performs Algorithm 2 from  https://arxiv.org/pdf/1703.06476.pdf.
-
-        Args:
-            centroids (List[np.ndarray]): The centroids to use for the coreset generation.
-
-        Returns:
-            Tuple[List, List]: The coreset vectors and coreset weights.
-        """
-
-        alpha = 16 * (np.log2(self._k_value_for_BLK2) + 2)
-
-        B_i_totals = [0] * len(centroids)
-        B_i = [np.empty_like(self._raw_data) for _ in range(len(centroids))]
-        for data_instance in self._raw_data:
-            _, closest_index = self.distance_to_centroids(data_instance, centroids)
-            B_i[closest_index][B_i_totals[closest_index]] = data_instance
-            B_i_totals[closest_index] += 1
-
-        c_phi = sum(
-            [
-                self.distance_to_centroids(data_instance, centroids)[0] ** 2
-                for data_instance in self._raw_data
-            ]
-        ) / len(self._raw_data)
-
-        p = np.zeros(len(self._raw_data))
-
-        sum_dist = {i: 0.0 for i in range(len(centroids))}
-        for i, data_instance in enumerate(self._raw_data):
-            dist, closest_index = self.distance_to_centroids(data_instance, centroids)
-            sum_dist[closest_index] += dist**2
-
-        for i, data_instance in enumerate(self._raw_data):
-            p[i] = (
-                2
-                * alpha
-                * self.distance_to_centroids(data_instance, centroids)[0] ** 2
-                / c_phi
-            )
-
-            closest_index = self.distance_to_centroids(data_instance, centroids)[1]
-            p[i] += (
-                4
-                * alpha
-                * sum_dist[closest_index]
-                / (B_i_totals[closest_index] * c_phi)
-            )
-
-            p[i] += 4 * len(self._raw_data) / B_i_totals[closest_index]
-        p = p / sum(p)
-
-        chosen_indices = np.random.choice(
-            len(self._raw_data), size=self._coreset_size, p=p
-        )
-        weights = [1 / (self._coreset_size * p[i]) for i in chosen_indices]
-
-        return [self._raw_data[i] for i in chosen_indices], weights
+        kmeans = KMeans(n_clusters=2).fit(coreset_vectors, sample_weight=sample_weight)
+        return self.get_cost(kmeans.cluster_centers_)
 
     @staticmethod
     def coreset_to_graph(
@@ -523,7 +367,7 @@ class Coreset:
         Returns:
             loaded dataset
         """
-        with open(f"{self.data_folder}/{file_name}", "rb") as handle:
+        with open(file_name, "rb") as handle:
             X = pickle.load(handle)
-            print(f"Data loaded from {self.data_folder}/{file_name}")
+            print(f"Data loaded from {file_name}")
         return X
