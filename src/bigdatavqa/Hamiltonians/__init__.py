@@ -1,1 +1,1 @@
-from ._hamiltonian import create_GMM_hamiltonian, get_K2_Hamiltonian, get_K3_Hamiltonian
+from ._hamiltonian import get_GMM_Hamiltonian, get_K2_Hamiltonian, get_K3_Hamiltonian
