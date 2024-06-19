@@ -1,6 +1,5 @@
 import cudaq
 import networkx as nx
-import numpy as np
 from cudaq import spin
 
 
@@ -32,7 +31,7 @@ def get_K3_Hamiltonian(G: nx.Graph) -> cudaq.SpinOperator:
     return -(1 / 8) * H
 
 
-def create_GMM_hamiltonian(pauli_operators) -> cudaq.SpinOperator:
+def get_GMM_Hamiltonian(pauli_operators) -> cudaq.SpinOperator:
     H = 0
     for idx, op in enumerate(pauli_operators):
         operator_string = op[0]
