@@ -1,8 +1,12 @@
 from abc import abstractmethod
+from typing import Callable, List, Optional, Union
 
 from .._base import BigDataVQA
 
+import cudaq
 import numpy as np
+import pandas as pd
+import sklearn
 from matplotlib import pyplot as plt
 from numpy.linalg import inv
 from sklearn.mixture import GaussianMixture
@@ -12,11 +16,25 @@ from tqdm import tqdm
 class GMMClustering(BigDataVQA):
     def __init__(
         self,
-        full_coreset_df,
-        vector_columns,
-        weights_column,
-        normalize_vectors=True,
-    ):
+        full_coreset_df: pd.DataFrame,
+        vector_columns: List[str],
+        weights_column: str,
+        normalize_vectors: Optional[bool] = True,
+    ) -> None:
+        """
+
+        Parameters
+        ----------
+        full_coreset_df : pd.DataFrame
+            The dataframe containing the coreset data.
+        vector_columns : list
+            The columns containing the vector data.
+        weights_column : str
+            The column containing the weights of the vectors.
+        normalize_vectors : bool, optional
+            Whether to normalize the vectors, by default True.
+
+        """
         super().__init__(
             full_coreset_df=full_coreset_df,
             vector_columns=vector_columns,
@@ -27,7 +45,12 @@ class GMMClustering(BigDataVQA):
 
         self.cost = np.inf
 
-    def fit(self):
+    def fit(self) -> None:
+        """
+
+        Fit the GMM model to the data.
+
+        """
         self.labels = self.run_GMM()
         self.cluster_centers = self.get_cluster_centroids_from_bitstring()
         if self.cost == np.inf:
@@ -41,9 +64,28 @@ class GMMClustering(BigDataVQA):
         *args,
         **kwargs,
     ):
+        """
+
+        Run the GMM algorithm. This method should be implemented in the child classes and it will vary depending on the GMM algorithm used.
+
+        """
         pass
 
-    def get_cluster_centroids_from_bitstring(self, bitstring=None):
+    def get_cluster_centroids_from_bitstring(
+        self, bitstring: Optional[str] = None
+    ) -> np.ndarray:
+        """
+
+        Get the cluster centroids from the bitstring.
+
+        Args:
+        bitstring (Optional[str], optional): The bitstring. Defaults to None.
+
+        Returns:
+        np.ndarray: The cluster centroids.
+
+        """
+
         columns_retain = self.vector_columns + ["label"]
 
         if bitstring is None:
@@ -53,7 +95,12 @@ class GMMClustering(BigDataVQA):
 
         return self.full_coreset_df[columns_retain].groupby("label").mean().values
 
-    def plot(self):
+    def plot(self) -> None:
+        """
+
+        Plot the clustering outcome over the coreset data
+
+        """
         plt.scatter(
             self.full_coreset_df["X"],
             self.full_coreset_df["Y"],
@@ -76,19 +123,19 @@ class GMMClustering(BigDataVQA):
 class GMMClusteringVQA(GMMClustering):
     def __init__(
         self,
-        full_coreset_df,
-        vector_columns,
-        weights_column,
-        qubits,
-        create_circuit,
-        circuit_depth,
-        optimizer_function,
-        optimizer,
-        create_Hamiltonian,
-        max_iterations,
-        max_shots,
-        normalize_vectors=True,
-    ):
+        full_coreset_df: pd.DataFrame,
+        vector_columns: List[str],
+        weights_column: str,
+        qubits: int,
+        create_circuit: Callable,
+        circuit_depth: int,
+        optimizer_function: Callable,
+        optimizer: cudaq.optimizers.optimizer,
+        create_Hamiltonian: Callable,
+        max_iterations: int,
+        max_shots: int,
+        normalize_vectors: Optional[bool] = True,
+    ) -> None:
         super().__init__(
             full_coreset_df,
             vector_columns,
@@ -104,11 +151,18 @@ class GMMClusteringVQA(GMMClustering):
         self.max_iterations = max_iterations
         self.max_shots = max_shots
 
-    def Z_i(self, i, length):
+    def Z_i(self, i: int, length: int) -> str:
         """
         if index i is in the range 0, ..., length-1, the function returns the operator Z_i
         else: the funtion returns the pauli string consisting of pauli I's only
         length is the number of pauli operators tensorised
+
+        Args:
+        i (int): The index of the Z operator.
+        length (int): The length of the pauli string.
+
+        Returns:
+        str: The pauli string.
         """
         pauli_string = ""
         for j in range(length):
@@ -118,7 +172,21 @@ class GMMClusteringVQA(GMMClustering):
                 pauli_string += "I"
         return pauli_string
 
-    def Z_ij(self, i, j, length):
+    def Z_ij(self, i: int, j: int, length: int) -> str:
+        """
+        if index i and j are in the range 0, ..., length-1, the function returns the operator Z_iZ_j
+        else: the funtion returns the pauli string consisting of pauli I's only
+        length is the number of pauli operators tensorised
+
+        Args:
+            i (int): The index of the Z operator.
+            j (int): The index of the Z operator.
+            length (int): The length of the pauli string.
+
+        Returns:
+            str: The pauli string.
+
+        """
         pauli_string = ""
         if i == j:
             pauli_string = self.Z_i(-1, length)
@@ -130,7 +198,21 @@ class GMMClusteringVQA(GMMClustering):
                     pauli_string += "I"
         return pauli_string
 
-    def get_scatter_matrix(self, coreset_vectors, coreset_weights=None):
+    def get_scatter_matrix(
+        self, coreset_vectors: np.ndarray, coreset_weights: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        """
+        Get the scatter matrix of the coreset data.
+
+        Args:
+            coreset_vectors (np.ndarray): The coreset vectors.
+            coreset_weights (Optional[np.ndarray], optional): The coreset weights. Defaults to None.
+
+        Returns:
+            np.ndarray: The scatter matrix.
+
+        """
+
         coreset_size, columns = coreset_vectors.shape
         if coreset_weights is None:
             coreset_weights = np.ones(coreset_size)
@@ -142,7 +224,22 @@ class GMMClusteringVQA(GMMClustering):
             )
         return T
 
-    def create_pauli_operators(self, coreset_vectors, coreset_weights):
+    def create_pauli_operators(
+        self, coreset_vectors: np.ndarray, coreset_weights: np.ndarray
+    ) -> List[List[Union[str, float]]]:
+        """
+
+        Create the pauli operators.
+
+        Args:
+            coreset_vectors (np.ndarray): The coreset vectors.
+            coreset_weights (np.ndarray): The coreset weights.
+
+        Returns:
+            List[List[str, float]]: The pauli operators.
+
+        """
+
         paulis = []
         pauli_weights = []
 
@@ -204,7 +301,15 @@ class GMMClusteringVQA(GMMClustering):
         self,
         *args,
         **kwargs,
-    ):
+    ) -> List[int]:
+        """
+
+        Run the GMM algorithm using the VQA approach.
+
+        Returns:
+            List[int]: The best bitstring.
+
+        """
         coreset_vectors, coreset_weights = self.preprocess_data(
             self.full_coreset_df,
             self.vector_columns,
@@ -231,14 +336,18 @@ class GMMClusteringVQA(GMMClustering):
 
         return self._get_best_bitstring(counts)
 
-    def _get_best_bitstring(self, counts):
+    def _get_best_bitstring(self, counts: cudaq.SampleResult) -> List[int]:
         best_bitstring = counts.most_probable()
         return [int(i) for i in best_bitstring]
 
 
 class GMMClusteringRandom(GMMClustering):
     def __init__(
-        self, full_coreset_df, vector_columns, weights_column, normalize_vectors=True
+        self,
+        full_coreset_df: pd.DataFrame,
+        vector_columns: List[str],
+        weights_column: str,
+        normalize_vectors=True,
     ):
         super().__init__(
             full_coreset_df, vector_columns, weights_column, normalize_vectors
@@ -248,7 +357,16 @@ class GMMClusteringRandom(GMMClustering):
         self,
         *args,
         **kwargs,
-    ):
+    ) -> np.ndarray:
+        """
+
+        Run the GMM algorithm using the random approach.
+
+        Returns:
+            np.ndarray: The best bitstring.
+
+        """
+
         coreset_vectors, _ = self.preprocess_data(
             self.full_coreset_df,
             self.vector_columns,
@@ -257,13 +375,22 @@ class GMMClusteringRandom(GMMClustering):
         )
         return self.generate_random_bitstring(coreset_vectors)
 
-    def _get_best_bitstring(self, *args, **kwargs):
+    def _get_best_bitstring(self, *args, **kwargs) -> None:
+        """
+
+        Empty method to be implemented in the child classes to satisfy the abstract method.
+
+        """
         pass
 
 
 class GMMClusteringClassicalGMM(GMMClustering):
     def __init__(
-        self, full_coreset_df, vector_columns, weights_column, normalize_vectors=True
+        self,
+        full_coreset_df: pd.DataFrame,
+        vector_columns: List[str],
+        weights_column: str,
+        normalize_vectors: Optional[bool] = True,
     ):
         super().__init__(
             full_coreset_df, vector_columns, weights_column, normalize_vectors
@@ -271,10 +398,17 @@ class GMMClusteringClassicalGMM(GMMClustering):
 
     def run_GMM(
         self,
-        n_components=2,
+        n_components: Optional[int] = 2,
         *args,
         **kwargs,
-    ):
+    ) -> np.ndarray:
+        """
+        Run the GMM algorithm using the classical GMM approach.
+
+        Returns:
+            np.ndarray: The best bitstring.
+
+        """
         coreset_vectors, _ = self.preprocess_data(
             self.full_coreset_df,
             self.vector_columns,
@@ -284,13 +418,19 @@ class GMMClusteringClassicalGMM(GMMClustering):
         gmm = GaussianMixture(n_components=n_components)
         return self._get_best_bitstring(gmm, coreset_vectors)
 
-    def _get_best_bitstring(self, gmm_object, coreset_vectors):
+    def _get_best_bitstring(
+        self, gmm_object: sklearn.mixture.GaussianMixture, coreset_vectors: np.ndarray
+    ) -> np.ndarray:
         return gmm_object.fit_predict(coreset_vectors)
 
 
 class GMMClusteringMaxCut(GMMClustering):
     def __init__(
-        self, full_coreset_df, vector_columns, weights_column, normalize_vectors
+        self,
+        full_coreset_df: pd.DataFrame,
+        vector_columns: List[str],
+        weights_column: str,
+        normalize_vectors: Optional[bool] = True,
     ):
         super().__init__(
             full_coreset_df, vector_columns, weights_column, normalize_vectors
@@ -300,7 +440,14 @@ class GMMClusteringMaxCut(GMMClustering):
         self,
         *args,
         **kwargs,
-    ):
+    ) -> str:
+        """
+
+        Run the GMM algorithm using the MaxCut approach.
+
+        Returns:
+            str: The best bitstring.
+        """
         coreset_vectors, _ = self.preprocess_data(
             self.full_coreset_df,
             self.vector_columns,
@@ -327,4 +474,9 @@ class GMMClusteringMaxCut(GMMClustering):
         return best_bitstring
 
     def _get_best_bitstring(self, *args, **kwargs):
+        """
+
+        Empty method to be implemented in the child classes to satisfy the abstract method.
+
+        """
         pass
