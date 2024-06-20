@@ -2,6 +2,20 @@ import cudaq
 
 
 def get_VQE_circuit(number_of_qubits: int, circuit_depth: int) -> cudaq.Kernel:
+    """
+
+    Get the VQE circuit.
+
+    Args:
+        number_of_qubits (int): The number of qubits in the circuit.
+        circuit_depth (int): The depth of the circuit.
+
+    Returns:
+        cudaq.Kernel: The VQE circuit
+
+
+    """
+
     @cudaq.kernel
     def kernel(thetas: list[float], number_of_qubits: int, circuit_depth: int):
         qubits = cudaq.qvector(number_of_qubits)
@@ -26,7 +40,20 @@ def get_VQE_circuit(number_of_qubits: int, circuit_depth: int) -> cudaq.Kernel:
     return kernel
 
 
-def get_QAOA_circuit(number_of_qubits, circuit_depth):
+def get_QAOA_circuit(number_of_qubits: int, circuit_depth: int) -> cudaq.Kernel:
+    """
+
+    Get the QAOA circuit.
+
+    Args:
+        number_of_qubits (int): The number of qubits in the circuit.
+        circuit_depth (int): The depth of the circuit.
+
+    Returns:
+        cudaq.Kernel: The QAOA circuit
+
+    """
+
     @cudaq.kernel
     def kernel(thetas: list[float], number_of_qubits: int, circuit_depth: int):
         qubits = cudaq.qvector(number_of_qubits)

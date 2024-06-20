@@ -82,6 +82,18 @@ class Voironi_Tessalation:
         show_annotation: bool = False,
         show_scatters: bool = False,
     ):
+        """
+
+        Plots the Voronoi tessalation.
+
+        Args:
+            clusters (np.ndarray): The clusters.
+            colors (List[str]): The colors for the clusters.
+            plot_title (str): The title of the plot. Defaults to "Voronoi Tessalation".
+            show_annotation (bool): Whether to show the annotations. Defaults to False.
+            show_scatters (bool): Whether to show the scatters. Defaults to False.
+
+        """
         coreset_df = self.full_coreset_df.copy()
         coreset_df["cluster"] = clusters
         coreset_df["color"] = [colors[i] for i in coreset_df.cluster]

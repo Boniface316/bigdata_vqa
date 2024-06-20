@@ -4,6 +4,17 @@ from cudaq import spin
 
 
 def get_K2_Hamiltonian(G: nx.Graph) -> cudaq.SpinOperator:
+    """
+    Get the Hamiltonian for the K2 model.
+
+    Args:
+        G (nx.Graph): The graph for which the Hamiltonian is to be calculated.
+
+    Returns:
+        cudaq.SpinOperator: The Hamiltonian for the K2 model.
+
+    """
+
     H = 0
 
     for i, j in G.edges():
@@ -14,6 +25,17 @@ def get_K2_Hamiltonian(G: nx.Graph) -> cudaq.SpinOperator:
 
 
 def get_K3_Hamiltonian(G: nx.Graph) -> cudaq.SpinOperator:
+    """
+
+    Get the Hamiltonian for the K3 model.
+
+    Args:
+        G (nx.Graph): The graph for which the Hamiltonian is to be calculated.
+
+    Returns:
+        cudaq.SpinOperator: The Hamiltonian for the K3 model.
+
+    """
     H = 0
     for i, j in G.edges():
         weight = G[i][j]["weight"]
@@ -32,6 +54,17 @@ def get_K3_Hamiltonian(G: nx.Graph) -> cudaq.SpinOperator:
 
 
 def get_GMM_Hamiltonian(pauli_operators) -> cudaq.SpinOperator:
+    """
+    Get the Hamiltonian for the GMM model.
+
+    Args:
+        pauli_operators (List[Tuple[str, float]]): The list of Pauli operators.
+
+    Returns:
+        cudaq.SpinOperator: The Hamiltonian for the GMM model.
+
+    """
+
     H = 0
     for idx, op in enumerate(pauli_operators):
         operator_string = op[0]

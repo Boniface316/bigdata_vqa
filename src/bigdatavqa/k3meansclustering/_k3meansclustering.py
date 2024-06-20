@@ -1,10 +1,14 @@
 from abc import abstractmethod
+from typing import Callable, List, Optional
 
 from .._base import BigDataVQA
 from ..coreset import Coreset
 
+import cudaq
 import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
+import pandas as pd
 from sklearn.cluster import KMeans
 from tqdm import tqdm
 
@@ -12,16 +16,16 @@ from tqdm import tqdm
 class K3MeansClustering(BigDataVQA):
     def __init__(
         self,
-        full_coreset_df,
-        vector_columns,
-        weights_columns,
-        normalize_vectors: bool = True,
-        number_of_qubits_representing_data: int = 2,
+        full_coreset_df: pd.DataFrame,
+        vector_columns: list[str],
+        weights_column: list[str],
+        normalize_vectors: Optional[bool] = True,
+        number_of_qubits_representing_data: Optional[int] = 2,
     ) -> None:
         super().__init__(
             full_coreset_df,
             vector_columns,
-            weights_columns,
+            weights_column,
             normalize_vectors,
             number_of_qubits_representing_data,
         )
@@ -30,14 +34,37 @@ class K3MeansClustering(BigDataVQA):
         self.cost = None
 
     @abstractmethod
-    def run_k3_clustering(self):
+    def run_k3_clustering(self) -> List:
+        """
+            This method should implement the logic to run the K3 clustering algorithm.
+
+        Returns:
+            List: The partition of the coreset into 3 clusters
+        """
+
         pass
 
     @abstractmethod
-    def _get_best_bitstring(self, coreset_graph):
+    def _get_best_bitstring(self, coreset_graph: nx.Graph) -> str:
+        """
+        Returns the best bitstring
+        """
         pass
 
-    def get_partition_from_bitstring(self, bitstring, coreset_graph):
+    def get_partition_from_bitstring(
+        self, bitstring: str, coreset_graph: nx.Graph
+    ) -> List:
+        """
+        Converts the bitstring into a partition of the coreset into 3 clusters
+
+        Args:
+            bitstring (str): The bitstring
+            coreset_graph (nx.Graph): The coreset graph
+
+        Returns:
+            List: The partition of the coreset into 3 clusters
+
+        """
         s1, s2, s3 = [], [], []
 
         vertices = list(coreset_graph.nodes)
@@ -54,6 +81,11 @@ class K3MeansClustering(BigDataVQA):
         return [s1, s2, s3]
 
     def fit(self):
+        """
+        Fits the k3 means model to the data
+
+        """
+
         self.partition = self.run_k3_clustering()
         self.partition = [
             [int(x / self.number_of_qubits_representing_data) for x in sublist]
@@ -73,7 +105,20 @@ class K3MeansClustering(BigDataVQA):
                 self.full_coreset_df, self.cluster_centers
             )
 
-    def get_lables_from_partition(self, coreset_df, partition):
+    def get_lables_from_partition(
+        self, coreset_df: pd.DataFrame, partition: List
+    ) -> List:
+        """
+        Converts the partition into labels for the coreset
+
+        Args:
+            coreset_df (pd.DataFrame): The coreset dataframe
+            partition (List): The partition of the coreset
+
+        Returns:
+            List: The labels for the coreset
+        """
+
         labels = [0] * len(coreset_df)
         for i, cluster in enumerate(partition):
             for vertex in cluster:
@@ -81,7 +126,18 @@ class K3MeansClustering(BigDataVQA):
 
         return labels
 
-    def _get_cluster_centers_from_partition(self, partition):
+    def _get_cluster_centers_from_partition(self, partition: List) -> np.array:
+        """
+        Returns the cluster centers from the partition
+
+        Args:
+            partition (List): The partition of the coreset
+
+        Returns:
+            np.array: The cluster centers
+
+        """
+
         coreset_vectors, coreset_weights = self.preprocess_data(
             self.full_coreset_df, self.vector_columns, self.weights_column, False
         )
@@ -124,25 +180,25 @@ class K3MeansClustering(BigDataVQA):
 class K3MeansClusteringVQA(K3MeansClustering):
     def __init__(
         self,
-        full_coreset_df,
-        vector_columns,
-        weights_columns,
-        qubits,
-        create_circuit,
-        circuit_depth,
-        optimizer_function,
-        optimizer,
-        create_Hamiltonian,
-        number_of_qubits_representing_data,
-        normalize_vectors,
-        max_iterations,
-        max_shots,
-        coreset_to_graph_metric="dist",
+        full_coreset_df: pd.DataFrame,
+        vector_columns: List[str],
+        weights_column: str,
+        qubits: int,
+        create_circuit: Callable,
+        circuit_depth: int,
+        optimizer_function: Callable,
+        optimizer: cudaq.optimizers.optimizer,
+        create_Hamiltonian: cudaq.SpinOperator,
+        number_of_qubits_representing_data: int,
+        max_iterations: int,
+        max_shots: int,
+        coreset_to_graph_metric: Optional[str] = "dist",
+        normalize_vectors: Optional[bool] = True,
     ) -> None:
         super().__init__(
             full_coreset_df,
             vector_columns,
-            weights_columns,
+            weights_column,
             normalize_vectors,
             number_of_qubits_representing_data,
         )
@@ -156,7 +212,15 @@ class K3MeansClusteringVQA(K3MeansClustering):
         self.max_shots = max_shots
         self.coreset_to_graph_metric = coreset_to_graph_metric
 
-    def run_k3_clustering(self):
+    def run_k3_clustering(self) -> List:
+        """
+        Run the K3 clustering algorithm using VQA
+
+        Returns:
+            List: The partition of the coreset into 3 clusters
+
+        """
+
         coreset_vectors, coreset_weights = self.preprocess_data(
             self.full_coreset_df,
             self.vector_columns,
@@ -190,28 +254,45 @@ class K3MeansClusteringVQA(K3MeansClustering):
 
         return self.get_partition_from_bitstring(self.bitstring, G)
 
-    def _get_best_bitstring(self, counts):
+    def _get_best_bitstring(self, counts: cudaq.SampleResult):
+        """
+        Get the best bitstring from the counts object
+
+        Args:
+            counts (cudaq.SampleResult): The counts object from cudaq
+
+        Returns:
+            str: The best bitstring
+
+        """
         return counts.most_probable()
 
 
 class K3MeansClusteringRandom(K3MeansClustering):
     def __init__(
         self,
-        full_coreset_df,
-        vector_columns,
-        weights_columns,
+        full_coreset_df: pd.DataFrame,
+        vector_columns: list[str],
+        weights_column: list[str],
         normalize_vectors: bool = True,
         number_of_qubits_representing_data: int = 2,
     ) -> None:
         super().__init__(
             full_coreset_df,
             vector_columns,
-            weights_columns,
+            weights_column,
             normalize_vectors,
             number_of_qubits_representing_data,
         )
 
-    def run_k3_clustering(self):
+    def run_k3_clustering(self) -> List:
+        """
+        Runs the K3 clustering algorithm using a random bitstring
+
+        Returns:
+            List: The partition of the coreset into 3 clusters
+        """
+
         coreset_vectors, coreset_weights = self.preprocess_data(
             self.full_coreset_df,
             self.vector_columns,
@@ -231,28 +312,40 @@ class K3MeansClusteringRandom(K3MeansClustering):
 
         return self.get_partition_from_bitstring(bitstring, G)
 
-    def _get_best_bitstring(self):
+    def _get_best_bitstring(self) -> None:
+        """
+        Empty method to satisfy the abstract method
+        """
         pass
 
 
 class K3MeansClusteringKMeans(K3MeansClustering):
     def __init__(
         self,
-        full_coreset_df,
-        vector_columns,
-        weights_columns,
+        full_coreset_df: pd.DataFrame,
+        vector_columns: list[str],
+        weights_column: str,
         normalize_vectors: bool = True,
         number_of_qubits_representing_data: int = 2,
     ) -> None:
         super().__init__(
             full_coreset_df,
             vector_columns,
-            weights_columns,
+            weights_column,
             normalize_vectors,
             number_of_qubits_representing_data,
         )
 
-    def run_k3_clustering(self):
+    def run_k3_clustering(self) -> List:
+        """
+
+        Runs the K3 clustering algorithm using the KMeans approach
+
+        Returns:
+            List: The partition of the coreset into 3 clusters
+
+        """
+
         coreset_vectors, _ = self.preprocess_data(
             self.full_coreset_df,
             self.vector_columns,
@@ -277,21 +370,30 @@ class K3MeansClusteringKMeans(K3MeansClustering):
 class K3MeansClusteringMaxCut(K3MeansClustering):
     def __init__(
         self,
-        full_coreset_df,
-        vector_columns,
-        weights_columns,
-        normalize_vectors: bool = True,
-        number_of_qubits_representing_data: int = 2,
+        full_coreset_df: pd.DataFrame,
+        vector_columns: list[str],
+        weights_column: str,
+        normalize_vectors: Optional[bool] = True,
+        number_of_qubits_representing_data: Optional[int] = 2,
     ) -> None:
         super().__init__(
             full_coreset_df,
             vector_columns,
-            weights_columns,
+            weights_column,
             normalize_vectors,
             number_of_qubits_representing_data,
         )
 
-    def run_k3_clustering(self):
+    def run_k3_clustering(self) -> List:
+        """
+
+        Runs the K3 clustering algorithm using the MaxCut approach
+
+        Returns:
+            List: The partition of the coreset into 3 clusters
+
+        """
+
         coreset_vectors, coreset_weights = self.preprocess_data(
             self.full_coreset_df,
             self.vector_columns,
@@ -312,7 +414,18 @@ class K3MeansClusteringMaxCut(K3MeansClustering):
 
         return self.get_partition_from_bitstring(bitstring, coreset_graph)
 
-    def _get_best_bitstring(self, coreset_graph):
+    def _get_best_bitstring(self, coreset_graph: nx.Graph) -> str:
+        """
+        Get the best bitstring using the MaxCut approach
+
+        Args:
+            coreset_graph (nx.Graph): The coreset graph
+
+        Returns:
+            str: The best bitstring
+
+        """
+
         coreset_df = self.full_coreset_df.copy()
 
         bitstring_length = (

@@ -14,6 +14,10 @@ from tqdm import tqdm
 
 
 class DivisiveClustering(BigDataVQA, Dendrogram, Voironi_Tessalation):
+    """
+    Abstract class to perform divisive clustering.
+    """
+
     def __init__(
         self,
         full_coreset_df: pd.DataFrame,
@@ -31,27 +35,11 @@ class DivisiveClustering(BigDataVQA, Dendrogram, Voironi_Tessalation):
         )
         self.linkage_matrix = []
 
-    @property
-    def coreset_data(self) -> pd.DataFrame:
-        return self.coreset_data
+    def fit(self) -> None:
+        """
+        Fit the divisive clustering model.
+        """
 
-    @coreset_data.setter
-    def coreset_data(self, coreset_data: pd.DataFrame) -> None:
-        self.linkage_matrix = []
-        self.coreset_data = coreset_data
-
-    @property
-    def hierarchical_clustering_sequence(self) -> List[Union[str, int]]:
-        return self._hierarchical_clustering_sequence
-
-    @hierarchical_clustering_sequence.setter
-    def hierarchical_clustering_sequence(
-        self, hierarchical_clustering_sequence: List[Union[str, int]]
-    ) -> None:
-        self.linkage_matrix = []
-        self._hierarchical_clustering_sequence = hierarchical_clustering_sequence
-
-    def fit(self):
         self.hierarchical_clustering_sequence = self._divisive_sequence(
             self.full_coreset_df, self.vector_columns, self.weights_column
         )
@@ -72,6 +60,8 @@ class DivisiveClustering(BigDataVQA, Dendrogram, Voironi_Tessalation):
         Perform divisive clustering on the coreset data.
         Args:
             full_coreset_df (pd.DataFrame): The full coreset data.
+            vector_columns (List[str]): The columns that represent the vectors.
+            weights_column (str, optional): The column that represents the weights. Defaults to "weights".
         Returns:
             List[Union[str, int]]: The hierarchical clustering sequence.
         """
@@ -123,6 +113,11 @@ class DivisiveClustering(BigDataVQA, Dendrogram, Voironi_Tessalation):
         Args:
             coreset_vectors_df_for_iteration (np.ndarray): The coreset vectors for the iteration.
             hierarchial_sequence (List): The hierarchical sequence.
+            vector_columns (List[str]): The vector columns.
+            weights_column (str): The weights column.
+
+        Returns:
+            List: The hierarchical clustering sequence.
         """
 
         bitstring = self._run_divisive_clustering(
@@ -138,7 +133,7 @@ class DivisiveClustering(BigDataVQA, Dendrogram, Voironi_Tessalation):
         coreset_vectors_df_for_iteration: pd.DataFrame,
         vector_columns: List[str],
         weights_column: str,
-    ) -> Union[List[str], List[int]]:
+    ) -> str:
         """
         Run the divisive clustering algorithm.
         Args:
@@ -152,17 +147,17 @@ class DivisiveClustering(BigDataVQA, Dendrogram, Voironi_Tessalation):
     def _add_children_to_hierarchial_clustering(
         self,
         iteration_dataframe: pd.DataFrame,
-        hierarchial_sequence: list,
+        hierarchial_sequence: List,
         bitstring: str,
     ) -> List[Union[str, int]]:
         """
         Add children to the hierarchical clustering sequence.
         Args:
             iteration_dataframe (pd.DataFrame): The iteration dataframe.
-            hierarchial_sequence (list): The hierarchical sequence.
+            hierarchial_sequence (List): The hierarchical sequence.
             bitstring (str): The bitstring.
         Returns:
-            list: The hierarchical sequence.
+            List: The hierarchical sequence.
         """
 
         iteration_dataframe["label"] = [int(bit) for bit in bitstring]
@@ -177,9 +172,7 @@ class DivisiveClustering(BigDataVQA, Dendrogram, Voironi_Tessalation):
     def get_divisive_cluster_cost(self) -> List[float]:
         """
         Get the cost of the divisive clustering at each iteration.
-        Args:
-            hierarchical_clustering_sequence (List): The hierarchical clustering sequence.
-            coreset_data (pd.DataFrame): The coreset data.
+
         Returns:
             List[float]: The cost of the divisive clustering sequence.
         """
@@ -200,7 +193,24 @@ class DivisiveClustering(BigDataVQA, Dendrogram, Voironi_Tessalation):
 
         return cost_at_each_iteration
 
-    def _get_cost_at_each_iteration(self, coreset_data, parent, children_lst):
+    def _get_cost_at_each_iteration(
+        self,
+        coreset_data: pd.DataFrame,
+        parent: List[Union[str, int]],
+        children_lst: List,
+    ) -> float:
+        """
+        Caulculate the cost at a given iteration.
+
+        Args:
+            coreset_data (pd.DataFrame): The coreset data.
+            parent (List[Union[str, int]]): The parent.
+            children_lst (List): The children list.
+
+        Returns:
+            float: The cost at the iteration.
+        """
+
         parent_data_frame = self._get_parent_data_frame(
             parent, children_lst, coreset_data
         )
@@ -212,7 +222,20 @@ class DivisiveClustering(BigDataVQA, Dendrogram, Voironi_Tessalation):
             parent_data_frame, centroid_coords
         )
 
-    def _get_parent_data_frame(self, parent, children_lst, coreset_data):
+    def _get_parent_data_frame(
+        self, parent: List, children_lst: List, coreset_data: pd.DataFrame
+    ):
+        """
+        Get the parent data frame.
+
+        Args:
+            parent (List): The parent.
+            children_lst (List): The children list.
+            coreset_data (pd.DataFrame): The coreset data.
+
+        Returns:
+            pd.DataFrame: The parent data frame.
+        """
         _, children_2 = children_lst
 
         parent_data_frame = coreset_data.iloc[parent]
@@ -253,6 +276,17 @@ class DivisiveClustering(BigDataVQA, Dendrogram, Voironi_Tessalation):
         )
 
     def _get_bitstring_probability_df(self, counts: cudaq.SampleResult) -> pd.DataFrame:
+        """
+        Returns the bitstring probability dataframe.
+
+        Args:
+            counts (cudaq.SampleResult): The counts.
+
+        Returns:
+            pd.DataFrame: The bitstring probability dataframe
+
+        """
+
         counts_pd = pd.DataFrame(counts.items(), columns=["bitstring", "counts"])
         counts_pd["probability"] = counts_pd["counts"] / counts_pd["counts"].sum()
         bitstring_probability_df = counts_pd.drop(columns=["counts"])
@@ -270,7 +304,7 @@ class DivisiveClustering(BigDataVQA, Dendrogram, Voironi_Tessalation):
         ]
 
     def _brute_force_cost_maxcut(
-        self, bitstrings: list[Union[str, int]], G: nx.graph
+        self, bitstrings: List[Union[str, int]], G: nx.graph
     ) -> Dict[str, float]:
         """
         Cost function for brute force method
@@ -348,7 +382,19 @@ class DivisiveClusteringVQA(DivisiveClustering):
         coreset_vectors_df_for_iteration: pd.DataFrame,
         vector_columns: List[str],
         weights_column: str = "weights",
-    ):
+    ) -> str:
+        """
+        Run the divisive clustering algorithm for VQA.
+
+        Args:
+            coreset_vectors_df_for_iteration (pd.DataFrame): The coreset vectors for the iteration.
+            vector_columns (List[str]): The vector columns.
+            weights_column (str): The weights column.
+
+        Returns:
+            str: The bitstring of the outcome
+
+        """
         coreset_vectors_for_iteration_np, coreset_weights_for_iteration_np = (
             self.preprocess_data(
                 coreset_vectors_df_for_iteration,
@@ -385,7 +431,9 @@ class DivisiveClusteringVQA(DivisiveClustering):
 
 
 class DivisiveClusteringRandom(DivisiveClustering):
-    def __init__(self, coreset_df, vector_columns, weights_column) -> None:
+    def __init__(
+        self, coreset_df: pd.DataFrame, vector_columns: List[str], weights_column: str
+    ) -> None:
         super().__init__(coreset_df, vector_columns, weights_column)
 
     def _run_divisive_clustering(
@@ -393,21 +441,45 @@ class DivisiveClusteringRandom(DivisiveClustering):
         coreset_vectors_df_for_iteration: pd.DataFrame,
         *args,
         **kwargs,
-    ) -> List[int]:
+    ) -> str:
+        """
+        Run the divisive clustering algorithm for random bitstring generation.
+
+        Args:
+            coreset_vectors_df_for_iteration (pd.DataFrame): The coreset vectors for the iteration.
+
+        Returns:
+            List[int]: The bitstring
+
+        """
+
         return self.generate_random_bitstring(coreset_vectors_df_for_iteration)
 
 
 class DivisiveClusteringKMeans(DivisiveClustering):
-    def __init__(self, coreset_df, vector_columns, weights_column) -> None:
+    def __init__(
+        self, coreset_df: pd.DataFrame, vector_columns: List[str], weights_column: str
+    ) -> None:
         super().__init__(coreset_df, vector_columns, weights_column)
 
     def _run_divisive_clustering(
         self,
         coreset_vectors_df_for_iteration: pd.DataFrame,
-        vector_columns,
+        vector_columns: List[str],
         *args,
         **kwargs,
-    ):
+    ) -> str:
+        """
+        Run the divisive clustering algorithm for KMeans.
+
+        Args:
+            coreset_vectors_df_for_iteration (pd.DataFrame): The coreset vectors for the iteration.
+            vector_columns (List[str]): The vector columns.
+
+        Returns:
+            List[int]: The bitstring
+
+        """
         if len(coreset_vectors_df_for_iteration) > 2:
             X = coreset_vectors_df_for_iteration[vector_columns].to_numpy()
             kmeans = KMeans(n_clusters=2, random_state=None).fit(X)
@@ -422,32 +494,34 @@ class DivisiveClusteringKMeans(DivisiveClustering):
 class DivisiveClusteringMaxCut(DivisiveClustering):
     def __init__(
         self,
-        coreset_df,
-        vector_columns,
-        weights_column,
-        normalize_vectors: bool = True,
-        coreset_to_graph_metric: str = "dot",
+        coreset_df: pd.DataFrame,
+        vector_columns: List[str],
+        weights_column: str,
+        normalize_vectors: Optional[bool] = True,
+        coreset_to_graph_metric: Optional[str] = "dot",
     ) -> None:
         super().__init__(coreset_df, vector_columns, weights_column)
         self._normalize_vectors = normalize_vectors
         self._coreset_to_graph_metric = coreset_to_graph_metric
-
-    @property
-    def normalize_vectors(self):
-        return self._normalize_vectors
-
-    @normalize_vectors.setter
-    def normalize_vectors(self, value):
-        if not isinstance(value, bool):
-            raise ValueError("normalize_vectors must be a boolean")
-        self._normalize_vectors = value
 
     def _run_divisive_clustering(
         self,
         coreset_vectors_df_for_iteration: pd.DataFrame,
         vector_columns: List[str],
         weights_column: str = "weights",
-    ):
+    ) -> str:
+        """
+        Run the divisive clustering algorithm for MaxCut.
+
+        Args:
+            coreset_vectors_df_for_iteration (pd.DataFrame): The coreset vectors for the iteration.
+            vector_columns (List[str]): The vector columns.
+            weights_column (str): The weights column.
+
+        Returns:
+            List[int]: The bitstring
+        """
+
         coreset_vectors_for_iteration_np, coreset_weights_for_iteration_np = (
             self.preprocess_data(
                 coreset_vectors_df_for_iteration, vector_columns, weights_column
@@ -470,6 +544,4 @@ class DivisiveClusteringMaxCut(DivisiveClustering):
 
         brute_force_bitstring_cost = brute_force_bitstring_cost.sort_values("cost")
 
-        best_bitstring = brute_force_bitstring_cost["cost"].idxmax()
-
-        return [int(bit) for bit in best_bitstring]
+        return brute_force_bitstring_cost["cost"].idxmax()
