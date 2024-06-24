@@ -98,7 +98,7 @@ class Voironi_Tessalation:
         coreset_df["cluster"] = clusters
         coreset_df["color"] = [colors[i] for i in coreset_df.cluster]
 
-        self.voronoi = Voronoi(coreset_df[self.vector_columns].to_numpy())
+        self.voronoi = Voronoi(coreset_df[self.base_config.vector_columns].to_numpy())
         regions, vertices = self._voronoi_finite_polygons_2d()
         fig, ax = plt.subplots(figsize=(8, 8))
         fig.tight_layout(pad=10)

@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Callable, List, Optional, Union
 
-from .._base import BigDataVQA, BaseConfig, VQAConfig
+from .._base import BaseConfig, BigDataVQA, VQAConfig
 
 import cudaq
 import numpy as np
@@ -9,17 +9,8 @@ import pandas as pd
 import sklearn
 from matplotlib import pyplot as plt
 from numpy.linalg import inv
-from pydantic import BaseModel, Field
 from sklearn.mixture import GaussianMixture
 from tqdm import tqdm
-
-
-class GMMClusteringConfig(BaseModel):
-    base_config: BaseConfig = Field(..., title="The base configuration object.")
-    vqa_config: VQAConfig = Field(
-        ...,
-        title="The VQA configuration object.",
-    )
 
 
 class GMMClustering(BigDataVQA):
