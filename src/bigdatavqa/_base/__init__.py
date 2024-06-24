@@ -1,1 +1,1 @@
-from ._base import BigDataVQA
+from ._base import BigDataVQA, BaseConfig, VQAConfig

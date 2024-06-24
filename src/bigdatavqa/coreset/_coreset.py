@@ -7,25 +7,30 @@ import numpy as np
 from scipy.stats import multivariate_normal
 from sklearn.cluster import KMeans
 
+from pydantic import BaseModel, Field
 
-# TODO: refactor with abstract class
+
+class CoresetConfig(BaseModel):
+    number_of_sampling_for_centroids: int = Field(
+        default=10, description="The number of sampling for centroids."
+    )
+    coreset_size: int = Field(default=10, description="The coreset size.")
+    number_of_coresets_to_evaluate: int = Field(
+        default=10, description="The number of coresets to evaluate."
+    )
+    sampling_method: Callable = Field(default=None, description="The sampling method.")
+    coreset_method: str = Field(default="BFL2", description="The coreset method.")
+
+
 class Coreset(ABC):
     # https://github.com/teaguetomesh/coresets/blob/ae69df4f52d683c54ab229489e5102b09378da86/kMeans/coreset.py
     def __init__(
         self,
         raw_data: np.ndarray,
-        number_of_sampling_for_centroids: int,
-        coreset_size: int,
-        number_of_coresets_to_evaluate: int,
-        sampling_method: Callable,
-        coresets_method: str,
+        coreset_config: CoresetConfig,
     ) -> None:
         self._raw_data = raw_data
-        self._coreset_size = coreset_size
-        self._number_of_coresets_to_evaluate = number_of_coresets_to_evaluate
-        self._number_of_sampling_for_centroids = number_of_sampling_for_centroids
-        self._sampling_method = sampling_method
-        self._coreset_method = coresets_method
+        self.coreset_config = coreset_config
 
     @property
     def raw_data(self) -> np.ndarray:
@@ -33,23 +38,23 @@ class Coreset(ABC):
 
     @property
     def coreset_size(self) -> int:
-        return self._coreset_size
+        return self.coreset_config.coreset_size
 
     @property
     def number_of_coresets_to_evaluate(self) -> int:
-        return self._number_of_coresets_to_evaluate
+        return self.coreset_config.number_of_coresets_to_evaluate
 
     @property
     def number_of_sampling_for_centroids(self) -> int:
-        return self._number_of_sampling_for_centroids
+        return self.coreset_config.number_of_sampling_for_centroids
 
     @property
     def coreset_method(self) -> str:
-        return self._coreset_method
+        return self.coreset_config.coreset_method
 
     @property
     def sampling_method_name(self) -> Callable:
-        return self.sampling_method.sampling_method_name
+        return self.coreset_config.sampling_method.sampling_method_name
 
     @raw_data.setter
     def raw_data(self, raw_data: np.ndarray) -> None:
@@ -57,23 +62,27 @@ class Coreset(ABC):
 
     @coreset_size.setter
     def coreset_size(self, coreset_size: int) -> None:
-        self._coreset_size = coreset_size
+        self.coreset_config.coreset_size = coreset_size
 
     @number_of_coresets_to_evaluate.setter
     def number_of_coresets_to_evaluate(
         self, number_of_coresets_to_evaluate: int
     ) -> None:
-        self._number_of_coresets_to_evaluate = number_of_coresets_to_evaluate
+        self.coreset_config.number_of_coresets_to_evaluate = (
+            number_of_coresets_to_evaluate
+        )
 
     @number_of_sampling_for_centroids.setter
     def number_of_sampling_for_centroids(
         self, number_of_sampling_for_centroids: int
     ) -> None:
-        self._number_of_sampling_for_centroids = number_of_sampling_for_centroids
+        self.coreset_config.number_of_sampling_for_centroids = (
+            number_of_sampling_for_centroids
+        )
 
     @coreset_method.setter
     def coreset_method(self, coreset_method: str) -> None:
-        self._coreset_method = coreset_method
+        self.coreset_config.coreset_method = coreset_method
 
     def _get_coresets(
         self, centroids: List[np.ndarray]
@@ -137,9 +146,11 @@ class Coreset(ABC):
 
         best_centroid_coordinates, best_centroid_cost = None, np.inf
 
-        for _ in range(self._number_of_sampling_for_centroids):
-            centroids = self._sampling_method.sample(
-                self.coreset_size, self.raw_data, self.distance_to_centroids
+        for _ in range(self.coreset_config.number_of_sampling_for_centroids):
+            centroids = self.coreset_config.sampling_method.sample(
+                self.coreset_config.coreset_size,
+                self.raw_data,
+                self.distance_to_centroids,
             )
             cost = self.get_cost(centroids)
             if cost < best_centroid_cost:
@@ -160,7 +171,7 @@ class Coreset(ABC):
         """
 
         cost = 0.0
-        for x in self.raw_data:
+        for x in self._raw_data:
             cost += self.distance_to_centroids(x, centroids)[0] ** 2
         return cost
 
@@ -209,7 +220,7 @@ class Coreset(ABC):
                 coreset_vectors=coreset_vectors[i],
                 sample_weight=coreset_weights[i],
             )
-            for i in range(self._number_of_coresets_to_evaluate)
+            for i in range(self.coreset_config.number_of_coresets_to_evaluate)
         ]
 
         best_index = cost_coreset.index(np.min(cost_coreset))

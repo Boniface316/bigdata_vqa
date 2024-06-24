@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Callable, List, Optional, Union
 
-from .._base import BigDataVQA
+from .._base import BigDataVQA, BaseConfig, VQAConfig
 
 import cudaq
 import numpy as np
@@ -9,8 +9,17 @@ import pandas as pd
 import sklearn
 from matplotlib import pyplot as plt
 from numpy.linalg import inv
+from pydantic import BaseModel, Field
 from sklearn.mixture import GaussianMixture
 from tqdm import tqdm
+
+
+class GMMClusteringConfig(BaseModel):
+    base_config: BaseConfig = Field(..., title="The base configuration object.")
+    vqa_config: VQAConfig = Field(
+        ...,
+        title="The VQA configuration object.",
+    )
 
 
 class GMMClustering(BigDataVQA):
@@ -20,36 +29,37 @@ class GMMClustering(BigDataVQA):
         vector_columns: List[str],
         weights_column: str,
         normalize_vectors: Optional[bool] = True,
+        number_of_qubits_representing_data: Optional[int] = 1,
     ) -> None:
         """
+        Initialize the GMM object.
 
-        Parameters
-        ----------
-        full_coreset_df : pd.DataFrame
-            The dataframe containing the coreset data.
-        vector_columns : list
-            The columns containing the vector data.
-        weights_column : str
-            The column containing the weights of the vectors.
-        normalize_vectors : bool, optional
-            Whether to normalize the vectors, by default True.
+        Args:
+            full_coreset_df (pd.DataFrame): The full coreset dataframe.
+            vector_columns (List[str]): The columns that represent the vectors.
+            weights_column (str): The column that represents the weights.
+            normalize_vectors (Optional[bool], optional): Whether to normalize the vectors. Defaults to True.
+            number_of_qubits_representing_data (Optional[int], optional): The number of qubits representing the data. Defaults to 1.
 
         """
-        super().__init__(
-            full_coreset_df=full_coreset_df,
+
+        base_config = BaseConfig(
             vector_columns=vector_columns,
             weights_column=weights_column,
-            mormalize_vectors=normalize_vectors,
-            number_of_qubits_representing_data=1,
+            normalize_vectors=normalize_vectors,
+            number_of_qubits_representing_data=number_of_qubits_representing_data,
+        )
+
+        super().__init__(
+            full_coreset_df=full_coreset_df,
+            base_config=base_config,
         )
 
         self.cost = np.inf
 
     def fit(self) -> None:
         """
-
         Fit the GMM model to the data.
-
         """
         self.labels = self.run_GMM()
         self.cluster_centers = self.get_cluster_centroids_from_bitstring()
@@ -65,9 +75,7 @@ class GMMClustering(BigDataVQA):
         **kwargs,
     ):
         """
-
         Run the GMM algorithm. This method should be implemented in the child classes and it will vary depending on the GMM algorithm used.
-
         """
         pass
 
@@ -75,18 +83,16 @@ class GMMClustering(BigDataVQA):
         self, bitstring: Optional[str] = None
     ) -> np.ndarray:
         """
-
         Get the cluster centroids from the bitstring.
 
         Args:
-        bitstring (Optional[str], optional): The bitstring. Defaults to None.
+            bitstring (Optional[str], optional): The bitstring. Defaults to None.
 
         Returns:
-        np.ndarray: The cluster centroids.
-
+            np.ndarray: The cluster centroids.
         """
 
-        columns_retain = self.vector_columns + ["label"]
+        columns_retain = self.base_config.vector_columns + ["label"]
 
         if bitstring is None:
             self.full_coreset_df["label"] = self.labels
@@ -97,9 +103,7 @@ class GMMClustering(BigDataVQA):
 
     def plot(self) -> None:
         """
-
         Plot the clustering outcome over the coreset data
-
         """
         plt.scatter(
             self.full_coreset_df["X"],
@@ -127,29 +131,52 @@ class GMMClusteringVQA(GMMClustering):
         vector_columns: List[str],
         weights_column: str,
         qubits: int,
-        create_circuit: Callable,
         circuit_depth: int,
         optimizer_function: Callable,
         optimizer: cudaq.optimizers.optimizer,
         create_Hamiltonian: Callable,
         max_iterations: int,
         max_shots: int,
+        create_circuit: Callable,
         normalize_vectors: Optional[bool] = True,
+        number_of_qubits_representing_data: Optional[int] = 1,
     ) -> None:
+        """
+        Initialize the GMM class.
+
+        Args:
+            full_coreset_df (pd.DataFrame): The full coreset dataframe.
+            vector_columns (List[str]): The list of column names representing the vector columns.
+            weights_column (str): The column name representing the weights.
+            qubits (int): The number of qubits.
+            circuit_depth (int): The depth of the circuit.
+            optimizer_function (Callable): The optimizer function to be used.
+            optimizer (cudaq.optimizers.optimizer): The optimizer to be used.
+            create_Hamiltonian (Callable): The function to create the Hamiltonian.
+            max_iterations (int): The maximum number of iterations.
+            max_shots (int): The maximum number of shots.
+            create_circuit (Callable): The function to create the circuit.
+            normalize_vectors (Optional[bool], optional): Whether to normalize the vectors. Defaults to True.
+            number_of_qubits_representing_data (Optional[int], optional): The number of qubits representing the data. Defaults to 1.
+        """
         super().__init__(
             full_coreset_df,
-            vector_columns,
-            weights_column,
-            normalize_vectors,
+            vector_columns=vector_columns,
+            weights_column=weights_column,
+            normalize_vectors=normalize_vectors,
+            number_of_qubits_representing_data=number_of_qubits_representing_data,
         )
-        self.qubits = qubits
-        self.create_circuit = create_circuit
-        self.circuit_depth = circuit_depth
-        self.optimizer_function = optimizer_function
-        self.optimizer = optimizer
-        self.create_Hamiltonian = create_Hamiltonian
-        self.max_iterations = max_iterations
-        self.max_shots = max_shots
+
+        self.VQA_config = VQAConfig(
+            qubits=qubits,
+            circuit_depth=circuit_depth,
+            optimizer_function=optimizer_function,
+            optimizer=optimizer,
+            create_Hamiltonian=create_Hamiltonian,
+            max_iterations=max_iterations,
+            max_shots=max_shots,
+            create_circuit=create_circuit,
+        )
 
     def Z_i(self, i: int, length: int) -> str:
         """
@@ -249,15 +276,15 @@ class GMMClusteringVQA(GMMClustering):
 
         W = sum(coreset_weights)
 
-        for i in range(self.qubits):
-            paulis += [self.Z_i(-1, self.qubits)]
+        for i in range(self.VQA_config.qubits):
+            paulis += [self.Z_i(-1, self.VQA_config.qubits)]
             pauli_weights += [
                 coreset_weights[i] ** 2
                 * np.dot(coreset_vectors[i], np.dot(T_inv, coreset_vectors[i]))
             ]
 
-            for l in range(self.qubits):
-                paulis += [self.Z_ij(i, l, self.qubits)]
+            for l in range(self.VQA_config.qubits):
+                paulis += [self.Z_ij(i, l, self.VQA_config.qubits)]
                 pauli_weights += [
                     -2
                     * coreset_weights[l]
@@ -266,17 +293,17 @@ class GMMClusteringVQA(GMMClustering):
                     / W
                 ]
 
-        for j in range(self.qubits):
+        for j in range(self.VQA_config.qubits):
             for i in range(j):
-                paulis += [self.Z_ij(i, j, self.qubits)]
+                paulis += [self.Z_ij(i, j, self.VQA_config.qubits)]
                 pauli_weights += [
                     2
                     * coreset_weights[i]
                     * coreset_weights[j]
                     * np.dot(coreset_vectors[i], np.dot(T_inv, coreset_vectors[j]))
                 ]
-                for l in range(self.qubits):
-                    paulis += [self.Z_ij(i, l, self.qubits)]
+                for l in range(self.VQA_config.qubits):
+                    paulis += [self.Z_ij(i, l, self.VQA_config.qubits)]
                     pauli_weights += [
                         -2
                         * coreset_weights[l]
@@ -285,7 +312,7 @@ class GMMClusteringVQA(GMMClustering):
                         * np.dot(coreset_vectors[i], np.dot(T_inv, coreset_vectors[j]))
                         / W
                     ]
-                    paulis += [self.Z_ij(j, l, self.qubits)]
+                    paulis += [self.Z_ij(j, l, self.VQA_config.qubits)]
                     pauli_weights += [
                         -2
                         * coreset_weights[l]
@@ -310,33 +337,39 @@ class GMMClusteringVQA(GMMClustering):
             List[int]: The best bitstring.
 
         """
-        coreset_vectors, coreset_weights = self.preprocess_data(
-            self.full_coreset_df,
-            self.vector_columns,
-            self.weights_column,
-            self.normalize_vectors,
-        )
+        coreset_vectors, coreset_weights = self.preprocess_data(self.full_coreset_df)
 
-        optimizer, parameter_count = self.optimizer_function(
-            self.optimizer,
-            self.max_iterations,
-            qubits=self.qubits,
-            circuit_depth=self.circuit_depth,
+        optimizer, parameter_count = self.VQA_config.optimizer_function(
+            self.VQA_config.optimizer,
+            self.VQA_config.max_iterations,
+            qubits=self.VQA_config.qubits,
+            circuit_depth=self.VQA_config.circuit_depth,
         )
 
         pauli_operators = self.create_pauli_operators(coreset_vectors, coreset_weights)
 
-        kernel = self.create_circuit(self.qubits, self.circuit_depth)
+        kernel = self.VQA_config.create_circuit(
+            self.VQA_config.qubits, self.VQA_config.circuit_depth
+        )
 
-        Hamiltonian = self.create_Hamiltonian(pauli_operators)
+        Hamiltonian = self.VQA_config.create_Hamiltonian(pauli_operators)
 
         counts = self.get_counts(
-            self.qubits, Hamiltonian, kernel, optimizer, parameter_count
+            self.VQA_config.qubits, Hamiltonian, kernel, optimizer, parameter_count
         )
 
         return self._get_best_bitstring(counts)
 
     def _get_best_bitstring(self, counts: cudaq.SampleResult) -> List[int]:
+        """
+        Returns the best bitstring representation of the counts.
+
+        Args:
+            counts (cudaq.SampleResult): The counts obtained from the quantum sampling.
+
+        Returns:
+            List[int]: The best bitstring representation of the counts.
+        """
         best_bitstring = counts.most_probable()
         return [int(i) for i in best_bitstring]
 
@@ -347,10 +380,15 @@ class GMMClusteringRandom(GMMClustering):
         full_coreset_df: pd.DataFrame,
         vector_columns: List[str],
         weights_column: str,
-        normalize_vectors=True,
+        normalize_vectors: Optional[bool] = True,
+        number_of_qubits_representing_data: Optional[int] = 1,
     ):
         super().__init__(
-            full_coreset_df, vector_columns, weights_column, normalize_vectors
+            full_coreset_df,
+            vector_columns=vector_columns,
+            weights_column=weights_column,
+            normalize_vectors=normalize_vectors,
+            number_of_qubits_representing_data=number_of_qubits_representing_data,
         )
 
     def run_GMM(
@@ -369,9 +407,6 @@ class GMMClusteringRandom(GMMClustering):
 
         coreset_vectors, _ = self.preprocess_data(
             self.full_coreset_df,
-            self.vector_columns,
-            self.weights_column,
-            self.normalize_vectors,
         )
         return self.generate_random_bitstring(coreset_vectors)
 
@@ -411,9 +446,6 @@ class GMMClusteringClassicalGMM(GMMClustering):
         """
         coreset_vectors, _ = self.preprocess_data(
             self.full_coreset_df,
-            self.vector_columns,
-            self.weights_column,
-            self.normalize_vectors,
         )
         gmm = GaussianMixture(n_components=n_components)
         return self._get_best_bitstring(gmm, coreset_vectors)
@@ -421,6 +453,17 @@ class GMMClusteringClassicalGMM(GMMClustering):
     def _get_best_bitstring(
         self, gmm_object: sklearn.mixture.GaussianMixture, coreset_vectors: np.ndarray
     ) -> np.ndarray:
+        """
+        Returns the best bitstring representation for the given GMM object and coreset vectors.
+
+        Parameters:
+            gmm_object: An instance of `sklearn.mixture.GaussianMixture` representing the Gaussian Mixture Model.
+            coreset_vectors: A numpy array containing the coreset vectors.
+
+        Returns:
+            A numpy array representing the best bitstring representation obtained from the GMM object and coreset vectors.
+        """
+
         return gmm_object.fit_predict(coreset_vectors)
 
 
@@ -431,9 +474,14 @@ class GMMClusteringMaxCut(GMMClustering):
         vector_columns: List[str],
         weights_column: str,
         normalize_vectors: Optional[bool] = True,
+        number_of_qubits_representing_data: Optional[int] = 1,
     ):
         super().__init__(
-            full_coreset_df, vector_columns, weights_column, normalize_vectors
+            full_coreset_df,
+            vector_columns=vector_columns,
+            weights_column=weights_column,
+            normalize_vectors=normalize_vectors,
+            number_of_qubits_representing_data=number_of_qubits_representing_data,
         )
 
     def run_GMM(
@@ -450,9 +498,6 @@ class GMMClusteringMaxCut(GMMClustering):
         """
         coreset_vectors, _ = self.preprocess_data(
             self.full_coreset_df,
-            self.vector_columns,
-            self.weights_column,
-            self.normalize_vectors,
         )
         bitstring_length = len(coreset_vectors)
         bitstrings = self.create_all_possible_bitstrings(bitstring_length)
