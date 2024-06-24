@@ -1,57 +1,112 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Callable, List
 
 from bigdatavqa.coreset import Coreset
 
 import cudaq
 import numpy as np
 import pandas as pd
+from pydantic import BaseModel, Field
+
+
+class BaseConfig(BaseModel):
+    """
+    Configuration class for BigDataVQA.
+
+    Args:
+        vector_columns (List[str], optional): The columns that represent the vectors. Defaults to ["X", "Y"].
+        weights_column (str, optional): The column that represents the weights. Defaults to "weights".
+        normalize_vectors (bool, optional): Whether to normalize the vectors. Defaults to True.
+        number_of_qubits_representing_data (int, optional): The number of qubits representing the data. Defaults to 1.
+    """
+
+    vector_columns: List[str] = Field(
+        default=["X", "Y"], description="The columns that represent the vectors."
+    )
+    weights_column: str = Field(
+        default="weights", description="The column that represents the weights."
+    )
+    normalize_vectors: bool = Field(
+        default=True, description="Whether to normalize the vectors."
+    )
+    number_of_qubits_representing_data: int = Field(
+        default=1, description="The number of qubits representing the data."
+    )
+
+
+class VQAConfig(BaseModel):
+    """
+    Configuration class for GMM Clustering in VQA.
+
+    Attributes:
+        qubits (int): The number of qubits.
+        circuit_depth (int): The depth of the circuit.
+        optimizer_function (Callable): The optimizer function.
+        optimizer (cudaq.optimizers.optimizer): The optimizer.
+        create_Hamiltonian (Callable): The Hamiltonian function.
+        max_iterations (int): The maximum number of iterations.
+        max_shots (int): The maximum number of shots.
+        create_circuit (Callable): The circuit function.
+        coreset_to_graph_metric (str): The coreset to graph metric function.
+    """
+
+    qubits: int = Field(..., description="The number of qubits.")
+    circuit_depth: int = Field(default=1, description="The depth of the circuit.")
+    optimizer_function: Callable = Field(..., description="The optimizer function.")
+    optimizer: cudaq.optimizers.optimizer = Field(..., description="The optimizer.")
+    create_Hamiltonian: Callable = Field(..., description="The Hamiltonian function.")
+    max_iterations: int = Field(100, description="The maximum number of iterations.")
+    max_shots: int = Field(1000, description="The maximum number of shots.")
+    create_circuit: Callable = Field(..., description="The circuit function.")
+    coreset_to_graph_metric: str = Field(
+        "dot", description="The coreset to graph metric function."
+    )
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class BigDataVQA(ABC):
     def __init__(
         self,
         full_coreset_df: pd.DataFrame,
-        vector_columns: list[str],
-        weights_column: str,
-        mormalize_vectors: bool,
-        number_of_qubits_representing_data: int,
+        base_config: BaseModel,
     ) -> None:
         """
         Initialize the BigDataVQA class.
 
         Args:
             full_coreset_df (pd.DataFrame): The full coreset DataFrame.
-            vector_columns (list[str]): The columns that represent the vectors.
-            weights_column (str): The column that represents the weights.
-            mormalize_vectors (bool): Whether to normalize the vectors.
-            number_of_qubits_representing_data (int): The number of qubits representing the data.
+            config (BigDataVQAConfig): The configuration object
         """
+
+        if not isinstance(full_coreset_df, pd.DataFrame):
+            raise TypeError("The input data must be a DataFrame.")
+
+        if not isinstance(base_config, BaseModel):
+            raise TypeError("The config object must be a BaseModel object.")
+
         self.full_coreset_df = full_coreset_df
-        self.vector_columns = vector_columns
-        self.weights_column = weights_column
-        self.normalize_vectors = mormalize_vectors
-        self.number_of_qubits_representing_data = number_of_qubits_representing_data
+        self.base_config = base_config
+        self.energy = None
+        self.optimal_parameters = None
 
     def preprocess_data(
         self,
         coreset_df: pd.DataFrame,
-        vector_columns: list[str],
-        weight_columns: str,
-        normalize_vectors: Optional[bool] = True,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Preprocess the data.
         Args:
             coreset_df (pd.DataFrame): The coreset DataFrame.
-            vector_columns (list[str]): The columns that represent the vectors.
-            weight_columns (str): The column that represents the weights.
-            normalize_vectors (bool, optional): Whether to normalize the vectors. Defaults to True.
-        """
-        coreset_vectors = coreset_df[vector_columns].to_numpy()
-        coreset_weights = coreset_df[weight_columns].to_numpy()
 
-        if normalize_vectors:
+        Returns:
+            tuple[np.ndarray, np.ndarray]: The coreset vectors and coreset weights.
+        """
+        coreset_vectors = coreset_df[self.base_config.vector_columns].to_numpy()
+        coreset_weights = coreset_df[self.base_config.weights_column].to_numpy()
+
+        if self.base_config.normalize_vectors:
             coreset_vectors = Coreset.normalize_array(coreset_vectors, True)
             coreset_weights = Coreset.normalize_array(coreset_weights)
 
@@ -121,7 +176,10 @@ class BigDataVQA(ABC):
             cluster_center = cluster_centers[label]
             for _, row in grouped_by_label.iterrows():
                 cumulative_cost += (
-                    np.linalg.norm(row[self.vector_columns] - cluster_center) ** 2
+                    np.linalg.norm(
+                        row[self.base_config.vector_columns] - cluster_center
+                    )
+                    ** 2
                 )
 
         return cumulative_cost
@@ -168,7 +226,11 @@ class BigDataVQA(ABC):
             kernel=kernel,
         ) -> tuple[float, list[float]]:
             get_result = lambda parameter_vector: cudaq.observe(
-                kernel, Hamiltonian, parameter_vector, qubits, self.circuit_depth
+                kernel,
+                Hamiltonian,
+                parameter_vector,
+                qubits,
+                self.VQA_config.circuit_depth,
             ).expectation()
 
             return get_result(parameter_vector)
@@ -181,6 +243,6 @@ class BigDataVQA(ABC):
             kernel,
             self.optimal_parameters,
             qubits,
-            self.circuit_depth,
-            shots_count=self.max_shots,
+            self.VQA_config.circuit_depth,
+            shots_count=self.VQA_config.max_shots,
         )
